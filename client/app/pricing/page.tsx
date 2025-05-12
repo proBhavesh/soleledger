@@ -16,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "next-auth/react";
-import Link from "next/link";
 import {
   startTrialAction,
   createCheckoutSessionAction,
@@ -303,8 +302,8 @@ export default function PricingPage() {
               What happens when my trial ends?
             </h3>
             <p className="text-muted-foreground">
-              You'll be prompted to select a plan and enter payment details to
-              continue using SoleLedger.
+              You&apos;ll be prompted to select a plan and enter payment details
+              to continue using SoleLedger.
             </p>
           </div>
           <div>

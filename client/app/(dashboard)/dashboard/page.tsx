@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ArrowDownIcon,
   ArrowUpIcon,
   DollarSignIcon,
   FileTextIcon,
@@ -21,7 +20,6 @@ import {
   Landmark,
   LoaderCircle,
 } from "lucide-react";
-import SubscriptionDetails from "@/components/subscription/subscription-details";
 import WelcomeBanner from "@/components/dashboard/welcome-banner";
 import { BankAccountsSummary } from "@/components/dashboard/bank-accounts-summary";
 import { PlaidLinkButton } from "@/components/dashboard/plaid-link-button";

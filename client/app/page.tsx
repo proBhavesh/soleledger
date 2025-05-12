@@ -43,12 +43,12 @@ export default function LandingPage() {
             <div className="flex flex-col items-center gap-4 text-center">
               <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary">
                 <span className="text-lg font-bold text-primary-foreground">
-                  "
+                  &quot;
                 </span>
               </div>
               <blockquote className="mx-auto max-w-3xl text-xl font-medium italic md:text-2xl">
                 SoleLedger has transformed how I manage my business finances.
-                I've saved hours each week on bookkeeping and have complete
+                I&apos;ve saved hours each week on bookkeeping and have complete
                 visibility into my cash flow.
               </blockquote>
               <div className="mt-4">

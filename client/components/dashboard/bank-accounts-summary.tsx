@@ -25,11 +25,6 @@ interface BankAccount {
   lastSync?: Date | null;
 }
 
-interface BankAccountsData {
-  accounts: BankAccount[];
-  businessId: string;
-}
-
 export function BankAccountsSummary() {
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);

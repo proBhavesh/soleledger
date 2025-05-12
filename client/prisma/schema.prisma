@@ -168,6 +168,8 @@ model Subscription {
   updatedAt            DateTime           @updatedAt
   payments             Payment[]
   user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, planId])
 }
 
 model Payment {

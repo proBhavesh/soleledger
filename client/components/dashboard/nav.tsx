@@ -13,7 +13,6 @@ import {
   Upload,
   Users,
   Landmark,
-  ChevronDown,
   Circle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -24,14 +23,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 
 const menuGroups = [

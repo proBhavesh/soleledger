@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { userAuthSchema } from "@/lib/types";
@@ -24,7 +24,8 @@ import { useSearchParams } from "next/navigation";
 
 type FormData = z.infer<typeof userAuthSchema>;
 
-export default function LoginPage() {
+// Create a client component to use the search params
+function LoginContent() {
   const [isPending, setIsPending] = useState(false);
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/pricing";
@@ -190,5 +191,33 @@ export default function LoginPage() {
         </CardFooter>
       </Card>
     </div>
+  );
+}
+
+// Add a loading fallback for the Suspense boundary
+function LoginFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-screen px-4">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle className="text-2xl text-center">
+            Login to SoleLedger
+          </CardTitle>
+          <CardDescription className="text-center">Loading...</CardDescription>
+        </CardHeader>
+        <CardContent className="h-72 flex items-center justify-center">
+          <div className="animate-pulse w-6 h-6 rounded-full border-2 border-primary border-t-transparent"></div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Main page component with Suspense
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginContent />
+    </Suspense>
   );
 }

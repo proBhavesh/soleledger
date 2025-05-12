@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { ArrowUpRight, Calendar, CheckCircle2, Clock } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -116,7 +116,7 @@ export default function SubscriptionDetails() {
         <CardHeader>
           <CardTitle>No Subscription</CardTitle>
           <CardDescription>
-            You don't have an active subscription
+            You don&apos;t have an active subscription
           </CardDescription>
         </CardHeader>
         <CardContent>

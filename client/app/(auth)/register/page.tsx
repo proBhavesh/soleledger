@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { userRegistrationSchema, UserRoleEnum } from "@/lib/types";
+import { userRegistrationSchema } from "@/lib/types";
 import {
   Card,
   CardContent,
@@ -19,13 +19,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { registerAction } from "@/lib/actions/auth-actions";
