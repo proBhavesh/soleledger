@@ -20,6 +20,7 @@ const nextConfig: NextConfig = {
       allowedOrigins: ["localhost:3000"],
     },
   },
+  output: "standalone",
 };
 
 export default nextConfig;
