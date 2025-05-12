@@ -451,12 +451,11 @@ const config = {
     "db"
   ],
   "activeProvider": "postgresql",
-  "postinstall": false,
   "inlineDatasources": {
     "db": {
       "url": {
         "fromEnvVar": "DATABASE_URL",
-        "value": null
+        "value": "postgresql://postgres:bhavesh995097@soleledger.cnokomemarte.us-east-1.rds.amazonaws.com:5432/postgres"
       }
     }
   },
