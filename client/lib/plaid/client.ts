@@ -79,7 +79,7 @@ export type PlaidExchangePublicTokenRequest = {
 export const PLAID_PRODUCTS = [
   Products.Transactions,
   Products.Auth,
-  Products.Balance,
+  // Products.Balance, // Removing as it's not supported as an initial product
 ] as const;
 
 // Country codes for which Plaid will be enabled - now including Canada
