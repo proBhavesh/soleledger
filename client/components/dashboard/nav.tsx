@@ -152,7 +152,7 @@ export function DashboardNav() {
 												key={item.href}
 												type="single"
 												collapsible
-												className="border-none"
+												className="border-none cursor-pointer"
 											>
 												<AccordionItem
 													value={item.title}
@@ -160,7 +160,7 @@ export function DashboardNav() {
 												>
 													<AccordionTrigger
 														className={cn(
-															"flex items-center py-2 px-3 text-sm rounded-md hover:bg-muted justify-start no-underline hover:no-underline",
+															"flex items-center py-2 px-3 text-sm rounded-md hover:bg-muted justify-start no-underline hover:no-underline cursor-pointer",
 															pathname ===
 																item.href &&
 																"bg-muted font-medium text-primary"
@@ -186,7 +186,7 @@ export function DashboardNav() {
 																		variant="ghost"
 																		size="sm"
 																		className={cn(
-																			"w-full justify-start pl-9 mb-1",
+																			"w-full justify-start pl-9 mb-1 cursor-pointer",
 																			pathname ===
 																				subitem.href &&
 																				"bg-muted font-medium text-primary"
@@ -216,7 +216,7 @@ export function DashboardNav() {
 													}
 													size="sm"
 													className={cn(
-														"w-full justify-start",
+														"w-full justify-start cursor-pointer",
 														pathname ===
 															item.href &&
 															"bg-muted font-medium text-primary"
