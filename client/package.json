@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x,rhel-openssl-3.0.x prisma generate && next build",
+    "postinstall": "PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x,rhel-openssl-3.0.x prisma generate",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "prisma:generate": "PRISMA_CLI_BINARY_TARGETS=rhel-openssl-3.0.x,debian-openssl-3.0.x,linux-musl-openssl-3.0.x prisma generate"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.9.0",
