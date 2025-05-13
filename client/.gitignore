@@ -21,7 +21,10 @@
 /build
 
 # prisma
-/lib/generated/
+/lib/generated/*
+!/lib/generated/prisma
+/lib/generated/prisma/*
+!/lib/generated/prisma/libquery_engine-*
 /prisma/migrations/
 
 # misc
