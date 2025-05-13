@@ -1,9 +1,10 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function HeroSection() {
-  return (
+	return (
 		<section className="w-full py-20 overflow-hidden relative">
 			{/* Background gradient */}
 			<div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent -z-10" />
@@ -55,18 +56,20 @@ export function HeroSection() {
 						</Link>
 					</div>
 
-					<div className="mt-8 relative w-full max-w-5xl aspect-video rounded-xl border bg-muted/40 overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-300">
-						<div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-							<span className="font-medium text-lg">
-								Dashboard Preview
-							</span>
+					<div className="mt-8 relative w-full max-w-5xl aspect-video rounded-xl border ">
+						<div className="flex justify-center items-center">
+							<div className="flex justify-center items-center w-full h-full">
+								<Image
+									src="/dashboard-preivew.png"
+									alt="Hero Video"
+									fill
+									className="object-cover overflow-hidden"
+								/>
+							</div>
 						</div>
-						{/* Decorative elements */}
-						<div className="absolute top-0 left-0 w-32 h-32 bg-primary/5 rounded-full -translate-x-1/2 -translate-y-1/2" />
-						<div className="absolute bottom-0 right-0 w-32 h-32 bg-primary/5 rounded-full translate-x-1/2 translate-y-1/2" />
 					</div>
 				</div>
 			</div>
 		</section>
-  );
+	);
 }
