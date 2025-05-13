@@ -4,9 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
-    "postbuild": "node copy-prisma-engine.js",
-    "postinstall": "prisma generate",
+    "build": "PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x,rhel-openssl-3.0.x prisma generate && next build",
+    "postinstall": "PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x,rhel-openssl-3.0.x prisma generate",
     "start": "next start",
     "lint": "next lint",
     "prisma:generate": "PRISMA_CLI_BINARY_TARGETS=rhel-openssl-3.0.x,debian-openssl-3.0.x,linux-musl-openssl-3.0.x prisma generate"
@@ -65,6 +64,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@prisma/nextjs-monorepo-workaround-plugin": "^6.7.0",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^3.0.0",
     "@types/node": "^20",

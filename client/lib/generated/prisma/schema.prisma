@@ -1,0 +1,365 @@
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../lib/generated/prisma"
+  previewFeatures = []
+  binaryTargets   = ["native", "rhel-openssl-3.0.x", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x", "darwin-arm64"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                  String             @id @default(cuid())
+  email               String             @unique
+  name                String?
+  hashedPassword      String?
+  role                UserRole           @default(BUSINESS_OWNER)
+  emailVerified       DateTime?
+  image               String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  accounts            Account[]
+  accountantProfile   AccountantProfile?
+  bankAccounts        BankAccount[]
+  ownedBusinesses     Business[]         @relation("BusinessOwner")
+  businesses          BusinessMember[]
+  businessProfile     BusinessProfile?
+  categories          Category[]
+  documents           Document[]
+  reports             Report[]
+  sessions            Session[]
+  subscriptions       Subscription[]
+  assignedTasks       Task[]             @relation("TaskAssignee")
+  tasks               Task[]             @relation("TaskCreator")
+  receivedInvitations TeamInvitation[]   @relation("InvitationReceiver")
+  sentInvitations     TeamInvitation[]   @relation("InvitationSender")
+  transactions        Transaction[]      @relation("TransactionCreator")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model BusinessProfile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  businessName String?
+  industry     String?
+  address      String?
+  taxId        String?
+  phone        String?
+  website      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AccountantProfile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  firmName         String?
+  certifications   String?
+  professionalInfo String?
+  address          String?
+  phone            String?
+  website          String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Business {
+  id           String           @id @default(cuid())
+  name         String
+  industry     String?
+  address      String?
+  taxId        String?
+  phone        String?
+  website      String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  ownerId      String
+  bankAccounts BankAccount[]
+  owner        User             @relation("BusinessOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members      BusinessMember[]
+  categories   Category[]
+  documents    Document[]
+  reports      Report[]
+  tasks        Task[]
+  transactions Transaction[]
+}
+
+model BusinessMember {
+  id         String   @id @default(cuid())
+  businessId String
+  userId     String
+  role       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, userId])
+}
+
+model TeamInvitation {
+  id         String           @id @default(cuid())
+  businessId String?
+  email      String
+  status     InvitationStatus @default(PENDING)
+  role       String
+  senderId   String
+  receiverId String?
+  expiresAt  DateTime
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  receiver   User?            @relation("InvitationReceiver", fields: [receiverId], references: [id])
+  sender     User             @relation("InvitationSender", fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String
+  status               SubscriptionStatus @default(TRIAL)
+  planId               String?
+  planName             String?
+  priceId              String?
+  amount               Float?
+  currency             String?            @default("USD")
+  interval             String?
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  trialEndsAt          DateTime?
+  startsAt             DateTime?
+  endsAt               DateTime?
+  canceledAt           DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  payments             Payment[]
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, planId])
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  subscriptionId  String
+  status          PaymentStatus @default(PENDING)
+  amount          Float
+  currency        String        @default("USD")
+  stripePaymentId String?
+  stripeInvoiceId String?
+  paymentDate     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  subscription    Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+}
+
+model BankAccount {
+  id               String        @id @default(cuid())
+  businessId       String
+  userId           String
+  name             String
+  accountNumber    String?
+  routingNumber    String?
+  institution      String?
+  balance          Float?
+  currency         String        @default("USD")
+  plaidItemId      String?
+  plaidAccessToken String?
+  lastSync         DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  business         Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions     Transaction[]
+}
+
+model Category {
+  id            String          @id @default(cuid())
+  businessId    String
+  name          String
+  type          TransactionType
+  description   String?
+  color         String?
+  icon          String?
+  isDefault     Boolean         @default(false)
+  parentId      String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  creatorId     String
+  business      Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  creator       User            @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  parent        Category?       @relation("SubCategories", fields: [parentId], references: [id])
+  subCategories Category[]      @relation("SubCategories")
+  transactions  Transaction[]
+}
+
+model Transaction {
+  id            String          @id @default(cuid())
+  businessId    String
+  bankAccountId String?
+  categoryId    String?
+  type          TransactionType
+  amount        Float
+  currency      String          @default("USD")
+  date          DateTime
+  description   String?
+  notes         String?
+  reference     String?
+  status        String?
+  isReconciled  Boolean         @default(false)
+  confidence    Float?
+  isFlagged     Boolean         @default(false)
+  externalId    String?
+  createdById   String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  documents     Document[]
+  bankAccount   BankAccount?    @relation(fields: [bankAccountId], references: [id])
+  business      Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category      Category?       @relation(fields: [categoryId], references: [id])
+  createdBy     User            @relation("TransactionCreator", fields: [createdById], references: [id], onDelete: Cascade)
+}
+
+model Document {
+  id            String       @id @default(cuid())
+  businessId    String
+  userId        String
+  name          String
+  type          DocumentType
+  url           String
+  size          Int
+  mimeType      String?
+  transactionId String?
+  verifiedAt    DateTime?
+  notes         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  business      Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Report {
+  id                String    @id @default(cuid())
+  businessId        String
+  userId            String
+  name              String
+  type              String
+  dateRange         String?
+  startDate         DateTime?
+  endDate           DateTime?
+  format            String?
+  url               String?
+  isScheduled       Boolean   @default(false)
+  scheduleFrequency String?
+  lastGenerated     DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  business          Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  businessId  String
+  title       String
+  description String?
+  status      TaskStatus   @default(PENDING)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  creatorId   String
+  assigneeId  String?
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  business    Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  creator     User         @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+}
+
+enum UserRole {
+  BUSINESS_OWNER
+  ACCOUNTANT
+  ADMIN
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  CANCELLED
+  PAST_DUE
+  TRIAL
+}
+
+enum PaymentStatus {
+  SUCCESS
+  FAILED
+  PENDING
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum DocumentType {
+  RECEIPT
+  INVOICE
+  STATEMENT
+  OTHER
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}

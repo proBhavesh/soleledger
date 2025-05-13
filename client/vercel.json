@@ -1,9 +1,0 @@
-{
-  "buildCommand": "prisma generate && next build",
-  "installCommand": "pnpm install",
-  "framework": "nextjs",
-  "outputDirectory": ".next",
-  "env": {
-    "PRISMA_BINARIES_PATH": ".prisma/client"
-  }
-}
