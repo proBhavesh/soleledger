@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x,rhel-openssl-3.0.x prisma generate && next build",
-    "postinstall": "PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x,rhel-openssl-3.0.x prisma generate",
+    "build": "prisma generate && next build",
+    "postbuild": "node copy-prisma-engine.js",
+    "postinstall": "prisma generate",
     "start": "next start",
     "lint": "next lint",
     "prisma:generate": "PRISMA_CLI_BINARY_TARGETS=rhel-openssl-3.0.x,debian-openssl-3.0.x,linux-musl-openssl-3.0.x prisma generate"
