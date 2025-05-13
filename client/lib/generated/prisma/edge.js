@@ -425,7 +425,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "/home/probhavesh/new_work/soleledger/client/lib/generated/prisma",
+      "value": "/Users/ashishkumar/Developer/projects/soleledger/client/lib/generated/prisma",
       "fromEnvVar": null
     },
     "config": {
@@ -434,7 +434,7 @@ const config = {
     "binaryTargets": [
       {
         "fromEnvVar": null,
-        "value": "debian-openssl-3.0.x",
+        "value": "darwin-arm64",
         "native": true
       },
       {
@@ -455,7 +455,7 @@ const config = {
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "/home/probhavesh/new_work/soleledger/client/prisma/schema.prisma",
+    "sourceFilePath": "/Users/ashishkumar/Developer/projects/soleledger/client/prisma/schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {

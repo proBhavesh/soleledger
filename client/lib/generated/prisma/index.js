@@ -426,7 +426,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "/home/probhavesh/new_work/soleledger/client/lib/generated/prisma",
+      "value": "/Users/ashishkumar/Developer/projects/soleledger/client/lib/generated/prisma",
       "fromEnvVar": null
     },
     "config": {
@@ -435,7 +435,7 @@ const config = {
     "binaryTargets": [
       {
         "fromEnvVar": null,
-        "value": "debian-openssl-3.0.x",
+        "value": "darwin-arm64",
         "native": true
       },
       {
@@ -456,7 +456,7 @@ const config = {
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "/home/probhavesh/new_work/soleledger/client/prisma/schema.prisma",
+    "sourceFilePath": "/Users/ashishkumar/Developer/projects/soleledger/client/prisma/schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {
@@ -519,20 +519,20 @@ exports.PrismaClient = PrismaClient
 Object.assign(exports, Prisma)
 
 // file annotations for bundling tools to include these files
-path.join(__dirname, "libquery_engine-debian-openssl-3.0.x.so.node");
-path.join(process.cwd(), "lib/generated/prisma/libquery_engine-debian-openssl-3.0.x.so.node")
+path.join(__dirname, "libquery_engine-darwin-arm64.dylib.node");
+path.join(process.cwd(), "lib/generated/prisma/libquery_engine-darwin-arm64.dylib.node")
 
 // file annotations for bundling tools to include these files
 path.join(__dirname, "libquery_engine-rhel-openssl-3.0.x.so.node");
 path.join(process.cwd(), "lib/generated/prisma/libquery_engine-rhel-openssl-3.0.x.so.node")
 
 // file annotations for bundling tools to include these files
-path.join(__dirname, "libquery_engine-linux-musl-openssl-3.0.x.so.node");
-path.join(process.cwd(), "lib/generated/prisma/libquery_engine-linux-musl-openssl-3.0.x.so.node")
+path.join(__dirname, "libquery_engine-debian-openssl-3.0.x.so.node");
+path.join(process.cwd(), "lib/generated/prisma/libquery_engine-debian-openssl-3.0.x.so.node")
 
 // file annotations for bundling tools to include these files
-path.join(__dirname, "libquery_engine-darwin-arm64.dylib.node");
-path.join(process.cwd(), "lib/generated/prisma/libquery_engine-darwin-arm64.dylib.node")
+path.join(__dirname, "libquery_engine-linux-musl-openssl-3.0.x.so.node");
+path.join(process.cwd(), "lib/generated/prisma/libquery_engine-linux-musl-openssl-3.0.x.so.node")
 // file annotations for bundling tools to include these files
 path.join(__dirname, "schema.prisma");
 path.join(process.cwd(), "lib/generated/prisma/schema.prisma")
