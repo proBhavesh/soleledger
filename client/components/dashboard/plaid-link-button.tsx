@@ -4,10 +4,7 @@ import { useState, useCallback } from "react";
 import { usePlaidLink, PlaidLinkOnSuccessMetadata } from "react-plaid-link";
 import { Button } from "@/components/ui/button";
 import { LucideLoader2, CircleDollarSign } from "lucide-react";
-import {
-  createLinkToken,
-  exchangePublicToken,
-} from "@/lib/actions/plaid-actions";
+import { createLinkToken, exchangePublicToken } from "@/lib/actions/plaid";
 import { toast } from "sonner";
 
 interface PlaidLinkButtonProps {
@@ -75,7 +72,9 @@ export function PlaidLinkButton({
         };
 
         await exchangePublicToken(publicToken, businessId, transformedMetadata);
-        toast.success("Bank account connected successfully!");
+        toast.success(
+          "Bank account connected successfully! We'll now automatically categorize your transactions and identify recurring payments."
+        );
 
         if (onSuccess) {
           onSuccess();
