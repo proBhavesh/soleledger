@@ -4,10 +4,10 @@ import { ArrowRight } from "lucide-react";
 
 export function CTASection() {
   return (
-		<section className="w-full py-16 md:py-24">
+		<section className="w-full py-16 md:pb-20">
 			<div className="px-4 md:px-6">
 				<div className="flex flex-col items-center justify-center">
-					<div className="mx-auto max-w-3xl rounded-lg p-2 text-primary-foreground text-center relative overflow-hidden backdrop-blur-sm border border-white/30 shadow-lg group">
+					<div className="mx-auto w-full rounded-lg p-2 text-primary-foreground text-center relative overflow-hidden backdrop-blur-sm border border-white/30 shadow-lg group">
 						{/* Gradient background elements */}
 						<div className="absolute inset-0 z-0 transition-all duration-500">
 							<div className="absolute top-0 left-0 w-full h-full bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIj48ZmlsdGVyIGlkPSJhIiB4PSIwIiB5PSIwIj48ZmVUdXJidWxlbmNlIGJhc2VGcmVxdWVuY3k9Ii43NSIgc3RpdGNoVGlsZXM9InN0aXRjaCIgdHlwZT0iZnJhY3RhbE5vaXNlIi8+PGZlQ29sb3JNYXRyaXggdHlwZT0ic2F0dXJhdGUiIHZhbHVlcz0iMCIvPjwvZmlsdGVyPjxwYXRoIGQ9Ik0wIDBoMjAwdjIwMEgweiIgZmlsdGVyPSJ1cmwoI2EpIiBvcGFjaXR5PSIuMDUiLz48L3N2Zz4=')] opacity-20"></div>
@@ -18,7 +18,7 @@ export function CTASection() {
 
 						{/* Content */}
 						<div
-							className="relative z-10 p-8 rounded-md border border-white/10 bg-white/5 backdrop-blur-sm shadow-inner transition-all duration-300 group-hover:border-white/20 group-hover:bg-white/10"
+							className="relative z-10 p-8 py-24 rounded-md border border-white/10 bg-white/5 backdrop-blur-sm shadow-inner transition-all duration-300 group-hover:border-white/20 group-hover:bg-white/10"
 							style={{
 								background:
 									"linear-gradient(135deg, rgba(99, 102, 241, 0.85), rgba(49, 46, 129, 0.75))",

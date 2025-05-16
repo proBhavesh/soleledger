@@ -127,9 +127,8 @@ export default function LandingPage() {
 						</div>
 					</div>
 				</section>
-
-				<CTASection />
 			</main>
+			<CTASection />
 			<SiteFooter />
 		</div>
   );
