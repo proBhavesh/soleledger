@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlaidLinkButton } from "@/components/dashboard/plaid-link-button";
-import { getBankAccounts } from "@/lib/actions/plaid-actions";
+import { getBankAccounts } from "@/lib/actions/plaid";
 import { formatCurrency } from "@/lib/utils";
 import { CircleDollarSign, LucideLoader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";

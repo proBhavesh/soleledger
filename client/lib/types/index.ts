@@ -231,3 +231,58 @@ export interface PlaidError {
   stack?: string;
   [key: string]: unknown;
 }
+
+// Enhanced transaction types with Plaid ENRICH data
+export interface EnrichedTransaction {
+  id: string;
+  description: string;
+  amount: number;
+  type: "INCOME" | "EXPENSE" | "TRANSFER";
+  date: string | Date;
+  category?: string;
+  categoryId?: string;
+  // Enriched data
+  merchantName?: string;
+  merchantLogo?: string;
+  personalFinanceCategory?: {
+    primary: string;
+    detailed: string;
+  };
+  locationCity?: string;
+  locationRegion?: string;
+  locationCountry?: string;
+  website?: string;
+  originalDescription?: string;
+  confidence?: number;
+  isRecurring?: boolean;
+}
+
+// Recurring transaction types from Plaid RECURRING_TRANSACTIONS
+export interface RecurringTransaction {
+  id: string;
+  streamId: string;
+  description: string;
+  merchantName?: string;
+  merchantLogo?: string;
+  personalFinanceCategory?: {
+    primary: string;
+    detailed: string;
+  };
+  amount: number;
+  averageAmount?: number;
+  lastAmount?: number;
+  type: "INCOME" | "EXPENSE";
+  frequency:
+    | "WEEKLY"
+    | "BIWEEKLY"
+    | "MONTHLY"
+    | "BIMONTHLY"
+    | "QUARTERLY"
+    | "ANNUALLY"
+    | "UNKNOWN";
+  lastDate: string;
+  nextDate?: string;
+  status: "ACTIVE" | "INACTIVE";
+  isActive: boolean;
+  confidence: number;
+}

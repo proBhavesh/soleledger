@@ -82,6 +82,13 @@ export const PLAID_PRODUCTS = [
   // Products.Balance, // Removing as it's not supported as an initial product
 ] as const;
 
+// Additional products that are used but don't need to be included in initial Link token
+export const PLAID_ADDITIONAL_PRODUCTS = {
+  ENRICH: true, // For enhanced transaction data
+  TRANSACTIONS_REFRESH: true, // For on-demand transaction refreshes
+  RECURRING_TRANSACTIONS: true, // For detecting recurring payments
+};
+
 // Country codes for which Plaid will be enabled - now including Canada
 export const PLAID_COUNTRY_CODES = [
   CountryCode.Us,
@@ -92,3 +99,16 @@ export const PLAID_COUNTRY_CODES = [
 export const PLAID_REDIRECT_URI =
   process.env.PLAID_REDIRECT_URI ||
   "http://localhost:3000/api/plaid/oauth-return";
+
+// Transaction sync options
+// Note: Type these carefully to match what API expects
+// Some options may need to be passed differently or may not be in the Types yet
+export const TRANSACTION_SYNC_OPTIONS = {
+  include_personal_finance_category: true, // Enable enhanced categorization from ENRICH
+  include_original_description: true, // Get original transaction descriptions
+  // include_logo_and_merchant_information is commented out as it's not in the TypeScript types
+  // We pass it directly in the syncing code with a type assertion when needed
+};
+
+// Max number of days for transaction history
+export const TRANSACTION_HISTORY_DAYS = 90; // Fetch up to 90 days of transactions

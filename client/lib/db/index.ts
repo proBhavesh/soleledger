@@ -1,4 +1,4 @@
-import { PrismaClient } from "@/lib/generated/prisma";
+import { PrismaClient } from "@/generated/prisma";
 
 // Simple function to create a new PrismaClient instance
 const prismaClientSingleton = () => {

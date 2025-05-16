@@ -13,7 +13,7 @@ const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
     // Ignore Prisma generated files
-    ignores: ["**/lib/generated/**"],
+    ignores: ["**/generated/**"],
   },
 ];
 
