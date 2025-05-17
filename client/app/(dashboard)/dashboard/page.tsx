@@ -23,47 +23,14 @@ import { ConnectAccountPrompt } from "@/components/dashboard/connect-account-pro
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
 import { PendingDocuments } from "@/components/dashboard/pending-documents";
 import { ClientOverview } from "@/components/dashboard/client-overview";
-import { Client } from "@/lib/types/dashboard";
-import type { FinancialSummary as FinancialSummaryType } from "@/lib/types/dashboard";
-
-// Transaction type from API
-interface Transaction {
-  id: string;
-  description: string;
-  amount: number;
-  type: "INCOME" | "EXPENSE" | "TRANSFER";
-  date: string | Date;
-  category: string;
-}
-
-// BankAccount type
-interface BankAccount {
-  id: string;
-  name: string;
-  balance: number;
-  institution: string;
-  lastSync?: Date | null;
-  // Add other fields as needed
-}
-
-// Financial summary data
-interface FinancialSummary {
-  totalIncome: number;
-  totalExpenses: number;
-  pendingReceipts: number;
-  totalBalance: number;
-  recentTransactions: Transaction[];
-  hasConnectedAccounts: boolean;
-  recurringExpenses: any[];
-  bankAccounts: BankAccount[]; // Added for refresh functionality
-}
+import { Client, FinancialSummary } from "@/lib/types/dashboard";
 
 export default function DashboardPage() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [financialData, setFinancialData] = useState<FinancialSummaryType>({
+  const [financialData, setFinancialData] = useState<FinancialSummary>({
     totalIncome: 0,
     totalExpenses: 0,
     pendingReceipts: 0,
@@ -110,7 +77,7 @@ export default function DashboardPage() {
     setIsLoading(true);
     try {
       const data = await getFinancialSummary();
-      setFinancialData(data as unknown as FinancialSummaryType);
+      setFinancialData(data as FinancialSummary);
     } catch (error) {
       console.error("Error fetching financial data:", error);
       toast.error("Failed to load financial data");
@@ -145,18 +112,6 @@ export default function DashboardPage() {
     } finally {
       setIsRefreshing(false);
     }
-  };
-
-  // Format transaction date
-  const formatTransactionDate = (dateString: string | Date) => {
-    if (!dateString) return "";
-    const date =
-      typeof dateString === "string" ? new Date(dateString) : dateString;
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
   };
 
   return (

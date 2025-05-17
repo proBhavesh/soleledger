@@ -4,6 +4,40 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { plaidClient } from "@/lib/plaid/client";
 
+// Define the request and response types for Plaid's recurringTransactionsGet
+interface RecurringTransactionsGetRequest {
+  access_token: string;
+}
+
+interface RecurringTransactionsGetResponse {
+  data: {
+    income?: RecurringStream[];
+    expenses?: RecurringStream[];
+  };
+}
+
+// Define the recurring stream type from Plaid's API
+interface RecurringStream {
+  stream_id: string;
+  description?: string;
+  category_id?: string;
+  personal_finance_category?: {
+    primary: string;
+    detailed: string;
+  };
+  average_amount: number;
+  last_amount?: number;
+  last_date: string;
+  frequency: string;
+}
+
+// Extended PlaidClient type with recurringTransactionsGet method
+type PlaidClientWithRecurring = typeof plaidClient & {
+  recurringTransactionsGet(
+    request: RecurringTransactionsGetRequest
+  ): Promise<RecurringTransactionsGetResponse>;
+};
+
 /**
  * Syncs recurring transactions for a connected account
  * Note: This is temporarily using standard Plaid API methods since recurringTransactionsGet
@@ -17,7 +51,9 @@ export async function syncRecurringTransactions(
   try {
     // Get recurring transactions from Plaid
     // Note: Use casting since the method is not fully typed in the Plaid SDK
-    const response = await (plaidClient as any).recurringTransactionsGet({
+    const response = await (
+      plaidClient as PlaidClientWithRecurring
+    ).recurringTransactionsGet({
       access_token: accessToken,
     });
 

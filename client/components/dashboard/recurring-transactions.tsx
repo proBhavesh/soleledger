@@ -10,12 +10,7 @@ import {
 } from "@/components/ui/card";
 import { getRecurringTransactions } from "@/lib/actions/plaid";
 import { formatCurrency } from "@/lib/utils";
-import {
-  RepeatIcon,
-  ClockIcon,
-  CalendarIcon,
-  LoaderCircle,
-} from "lucide-react";
+import { RepeatIcon, CalendarIcon, LoaderCircle } from "lucide-react";
 
 interface RecurringTransaction {
   id: string;
