@@ -3,11 +3,8 @@ import { PrismaClient } from "@/generated/prisma";
 // Simple function to create a new PrismaClient instance
 const prismaClientSingleton = () => {
   return new PrismaClient({
-    // Log queries in development
-    log:
-      process.env.NODE_ENV === "development"
-        ? ["query", "error", "warn"]
-        : ["error"],
+    // Disable all logging
+    log: [],
   });
 };
 

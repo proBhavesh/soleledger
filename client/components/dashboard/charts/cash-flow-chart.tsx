@@ -17,6 +17,7 @@ interface CashFlowChartProps {
   bankAccounts: BankAccount[];
   isRefreshing: boolean;
   onRefresh: (bankAccountId: string) => Promise<void>;
+  className?: string;
 }
 
 export function CashFlowChart({
@@ -25,9 +26,10 @@ export function CashFlowChart({
   bankAccounts,
   isRefreshing,
   onRefresh,
+  className,
 }: CashFlowChartProps) {
   return (
-    <Card className="col-span-4">
+    <Card className={className}>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle>{title}</CardTitle>

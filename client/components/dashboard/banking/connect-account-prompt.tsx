@@ -2,7 +2,7 @@
 
 import { Card } from "@/components/ui/card";
 import { Landmark } from "lucide-react";
-import { PlaidLinkButton } from "@/components/dashboard/plaid-link-button";
+import { PlaidLinkButton } from "@/components/dashboard/plaid/plaid-link-button";
 
 interface ConnectAccountPromptProps {
   onSuccess: () => void;

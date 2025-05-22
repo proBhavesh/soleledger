@@ -263,11 +263,7 @@ export async function refreshTransactions(bankAccountId: string) {
 
     // Also refresh recurring transactions
     const { syncRecurringTransactions } = await import("./recurring");
-    await syncRecurringTransactions(
-      bankAccount.plaidAccessToken,
-      bankAccount.businessId,
-      userId
-    );
+    await syncRecurringTransactions(bankAccount.plaidAccessToken);
 
     // Update last sync time
     await db.bankAccount.update({

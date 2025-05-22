@@ -1,5 +1,5 @@
-import { DashboardNav } from "@/components/dashboard/nav";
-import { DashboardHeader } from "@/components/dashboard/header";
+import { DashboardNav } from "@/components/dashboard/layout/nav";
+import { DashboardHeader } from "@/components/dashboard/layout/header";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 

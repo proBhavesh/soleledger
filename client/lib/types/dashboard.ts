@@ -8,6 +8,47 @@ export interface Transaction {
   type: "INCOME" | "EXPENSE" | "TRANSFER";
   date: string | Date;
   category: string;
+  // Enhanced fields from Plaid
+  merchantName?: string | null;
+  merchantLogo?: string | null;
+  originalDescription?: string | null;
+  locationCity?: string | null;
+  locationRegion?: string | null;
+  paymentChannel?: string | null;
+  pending?: boolean;
+  categoryIconName?: string | null;
+  categoryConfidence?: number | null;
+  subcategory?: string | null;
+  accountId?: string | null;
+  accountName?: string | null;
+}
+
+// Transaction filter values for filtering transactions
+export interface TransactionFilterValues {
+  search?: string;
+  category?: string;
+  accountId?: string;
+  dateRange?: {
+    from?: Date;
+    to?: Date;
+  };
+  type?: "INCOME" | "EXPENSE";
+  minAmount?: number;
+  maxAmount?: number;
+}
+
+// Balance history point for account balance charts
+export interface BalanceHistoryPoint {
+  date: Date;
+  balance: number;
+}
+
+// Category type for transaction categorization
+export interface Category {
+  id: string;
+  name: string;
+  type: "INCOME" | "EXPENSE";
+  description?: string;
 }
 
 // BankAccount type
@@ -23,6 +64,8 @@ export interface BankAccount {
   routingNumber?: string | null;
   plaidItemId?: string | null;
   plaidAccessToken?: string | null;
+  accountType?: string | null;
+  availableBalance?: number | null;
 }
 
 // Recurring expense type for dashboard
@@ -32,6 +75,18 @@ export interface RecurringExpense {
   amount: number;
   frequency: string;
   category: string;
+  flow: "INFLOW" | "OUTFLOW";
+  lastDate?: string;
+  nextDate?: string;
+  merchantName?: string | null;
+  merchantLogo?: string | null;
+  status?: "ACTIVE" | "INACTIVE";
+  accountNumber?: string | null;
+  routingNumber?: string | null;
+  plaidItemId?: string | null;
+  plaidAccessToken?: string | null;
+  accountType?: string | null;
+  availableBalance?: number | null;
 }
 
 // Financial summary data

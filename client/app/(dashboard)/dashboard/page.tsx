@@ -11,19 +11,22 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LoaderCircle } from "lucide-react";
-import { BankAccountsSummary } from "@/components/dashboard/bank-accounts-summary";
-import { RecurringTransactions } from "@/components/dashboard/recurring-transactions";
+import { LoaderCircle, RefreshCw } from "lucide-react";
+import { BankAccountsSummary } from "@/components/dashboard/banking/bank-accounts-summary";
+import { RecurringTransactions } from "@/components/dashboard/transactions/recurring-transactions";
 import { getFinancialSummary, refreshTransactions } from "@/lib/actions/plaid";
 import { toast } from "sonner";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
-import { FinancialMetrics } from "@/components/dashboard/financial-metrics";
-import { CashFlowChart } from "@/components/dashboard/cash-flow-chart";
-import { ConnectAccountPrompt } from "@/components/dashboard/connect-account-prompt";
-import { RecentTransactions } from "@/components/dashboard/recent-transactions";
-import { PendingDocuments } from "@/components/dashboard/pending-documents";
-import { ClientOverview } from "@/components/dashboard/client-overview";
+import { DashboardHeader } from "@/components/dashboard/layout/dashboard-header";
+import { FinancialMetrics } from "@/components/dashboard/overview/financial-metrics";
+import { CashFlowChart } from "@/components/dashboard/charts/cash-flow-chart";
+import { IncomeExpenseChart } from "@/components/dashboard/charts/income-expense-chart";
+import { AccountBalanceCards } from "@/components/dashboard/banking/account-balance-cards";
+import { ConnectAccountPrompt } from "@/components/dashboard/banking/connect-account-prompt";
+import { RecentTransactions } from "@/components/dashboard/transactions/recent-transactions";
+import { PendingDocuments } from "@/components/dashboard/overview/pending-documents";
+import { ClientOverview } from "@/components/dashboard/overview/client-overview";
 import { Client, FinancialSummary } from "@/lib/types/dashboard";
+import { Button } from "@/components/ui/button";
 
 export default function DashboardPage() {
   const { data: session } = useSession();
@@ -77,7 +80,17 @@ export default function DashboardPage() {
     setIsLoading(true);
     try {
       const data = await getFinancialSummary();
-      setFinancialData(data as FinancialSummary);
+
+      // Transform the recurring expenses to match the expected type
+      const fixedData = {
+        ...data,
+        recurringExpenses: data.recurringExpenses.map((expense) => ({
+          ...expense,
+          flow: expense.amount > 0 ? "OUTFLOW" : "INFLOW", // Add the missing 'flow' property
+        })),
+      };
+
+      setFinancialData(fixedData as FinancialSummary);
     } catch (error) {
       console.error("Error fetching financial data:", error);
       toast.error("Failed to load financial data");
@@ -125,6 +138,7 @@ export default function DashboardPage() {
       <Tabs defaultValue="overview" className="w-full">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="accounts">Accounts</TabsTrigger>
           <TabsTrigger value="recent">Recent Activity</TabsTrigger>
           {userRole === "ACCOUNTANT" && (
             <TabsTrigger value="clients">Clients</TabsTrigger>
@@ -147,6 +161,7 @@ export default function DashboardPage() {
                   bankAccounts={financialData.bankAccounts}
                   isRefreshing={isRefreshing}
                   onRefresh={handleRefreshTransactions}
+                  className="col-span-4"
                 />
                 <Card className="col-span-3">
                   <CardHeader>
@@ -161,12 +176,62 @@ export default function DashboardPage() {
                 </Card>
               </div>
 
+              {/* Income vs Expenses Chart */}
+              <IncomeExpenseChart
+                totalIncome={financialData.totalIncome}
+                totalExpenses={financialData.totalExpenses}
+                recentTransactions={financialData.recentTransactions}
+                isLoading={isLoading}
+              />
+
               {/* Add RecurringTransactions component if there are recurring expenses */}
               {financialData.recurringExpenses &&
                 financialData.recurringExpenses.length > 0 && (
                   <RecurringTransactions />
                 )}
             </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="accounts" className="space-y-4">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xl font-semibold tracking-tight">
+              Account Balance History
+            </h2>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchFinancialData}
+              disabled={isLoading || isRefreshing}
+            >
+              {isRefreshing ? (
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Refresh Data
+            </Button>
+          </div>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : !financialData.hasConnectedAccounts ? (
+            <ConnectAccountPrompt onSuccess={handleAccountConnected} />
+          ) : (
+            <AccountBalanceCards
+              accounts={financialData.bankAccounts.map((account) => ({
+                id: account.id,
+                name: account.name,
+                institution: account.institution,
+                balance: account.balance,
+                currency: account.currency,
+                businessId: account.businessId,
+                lastSync: account.lastSync,
+                accountNumber: account.accountNumber,
+                accountType: account.accountType,
+              }))}
+            />
           )}
         </TabsContent>
 

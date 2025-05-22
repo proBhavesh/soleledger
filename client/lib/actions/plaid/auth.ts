@@ -46,24 +46,8 @@ export async function createLinkToken() {
     redirect_uri: PLAID_REDIRECT_URI,
   };
 
-  // Log the request for debugging (sanitize any sensitive data)
-  console.log("Plaid Link Token Request:", {
-    client_user_id: userId,
-    client_name: "SoleLedger",
-    products: PLAID_PRODUCTS,
-    language: "en",
-    country_codes: PLAID_COUNTRY_CODES,
-    webhook: process.env.PLAID_WEBHOOK_URL,
-    redirect_uri: PLAID_REDIRECT_URI,
-  });
-
   try {
     const response = await plaidClient.linkTokenCreate(request);
-    console.log("Plaid Link Token Response (success):", {
-      expiration: response.data.expiration,
-      request_id: response.data.request_id,
-      link_token_exists: !!response.data.link_token,
-    });
 
     return {
       linkToken: response.data.link_token,
@@ -184,7 +168,7 @@ export async function exchangePublicToken(
 
     // Get recurring transactions
     const { syncRecurringTransactions } = await import("./recurring");
-    await syncRecurringTransactions(accessToken, businessId, userId);
+    await syncRecurringTransactions(accessToken);
 
     revalidatePath("/dashboard");
 

@@ -1,6 +1,6 @@
 "use client";
 
-import WelcomeBanner from "@/components/dashboard/welcome-banner";
+import WelcomeBanner from "@/components/dashboard/overview/welcome-banner";
 
 interface DashboardHeaderProps {
   userName: string;

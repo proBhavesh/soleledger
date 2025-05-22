@@ -13,14 +13,6 @@ const plaidEnv =
 const plaidClientId = process.env.PLAID_CLIENT_ID;
 const plaidSecret = process.env.PLAID_SECRET;
 
-// Log the Plaid configuration for debugging (exclude secrets)
-console.log("Initializing Plaid Client with:", {
-  environment: plaidEnv,
-  clientIdExists: !!plaidClientId,
-  secretExists: !!plaidSecret,
-  basePath: PlaidEnvironments[plaidEnv],
-});
-
 // Check for missing credentials
 if (!plaidClientId || !plaidSecret) {
   console.error(
