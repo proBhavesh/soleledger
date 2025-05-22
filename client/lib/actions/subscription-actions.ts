@@ -8,7 +8,6 @@ import {
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { addDays, format } from "date-fns";
-import { cookies } from "next/headers";
 
 /**
  * Start a 30-day trial for a user
@@ -46,16 +45,6 @@ export async function startTrialAction(planType: PlanType) {
         interval: "month",
         trialEndsAt,
       },
-    });
-
-    // Set cookie to indicate user has a subscription
-    const cookieStore = await cookies();
-    cookieStore.set("hasSubscription", "true", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      expires: trialEndsAt,
-      path: "/",
     });
 
     return {
