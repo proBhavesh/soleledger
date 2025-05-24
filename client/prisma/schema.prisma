@@ -249,6 +249,7 @@ model Transaction {
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   documents     Document[]
+  matches       DocumentMatch[]
   bankAccount   BankAccount?    @relation(fields: [bankAccountId], references: [id])
   business      Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
   category      Category?       @relation(fields: [categoryId], references: [id])
@@ -269,9 +270,45 @@ model Document {
   notes         String?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+  
+  // Processing fields
+  processingStatus    ProcessingStatus @default(PENDING)
+  extractedData       Json?           // Structured data from AI
+  processingError     String?
+  
+  // S3 storage
+  s3Bucket           String?
+  s3Key              String?
+  originalFileName   String?
+  
+  // Receipt-specific extracted data
+  extractedAmount    Float?
+  extractedDate      DateTime?
+  extractedVendor    String?
+  extractedTax       Float?
+  extractedCurrency  String?
+  
   business      Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
   user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matches       DocumentMatch[]
+}
+
+model DocumentMatch {
+  id              String  @id @default(cuid())
+  documentId      String
+  transactionId   String
+  confidence      Float   // 0-1 score
+  status          MatchStatus @default(SUGGESTED)
+  matchReason     String? // AI explanation
+  isUserConfirmed Boolean @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  document        Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  transaction     Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  
+  @@unique([documentId, transactionId])
 }
 
 model Report {
@@ -362,4 +399,18 @@ enum TaskPriority {
   LOW
   MEDIUM
   HIGH
+}
+
+enum ProcessingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum MatchStatus {
+  SUGGESTED
+  CONFIRMED
+  REJECTED
+  MANUAL
 }
