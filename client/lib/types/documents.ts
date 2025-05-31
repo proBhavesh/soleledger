@@ -1,9 +1,7 @@
 // Document processing types for Phase 4 implementation
 import type {
-  Document,
   DocumentMatch as PrismaDocumentMatch,
   DocumentType,
-  ProcessingStatus,
 } from "@/generated/prisma";
 
 export interface UploadRequest {
@@ -28,18 +26,29 @@ export interface ProcessDocumentRequest {
 
 export interface ExtractedReceiptData {
   type: "receipt" | "invoice" | "statement" | "other";
-  vendor: string | null;
-  amount: number | null;
+  vendor?: string;
+  amount?: number;
   currency: string;
-  date: string | null; // ISO date string
-  tax: number | null;
+  date?: string; // ISO date string
+  tax?: number;
   items?: Array<{
     description: string;
-    amount: number | null;
-    quantity: number | null;
+    amount?: number;
+    quantity?: number;
   }>;
   confidence: number;
   notes?: string;
+}
+
+// JSON-compatible type for Prisma storage
+export type ExtractedReceiptDataJson = Record<string, unknown>;
+
+// Type conversion utilities for Prisma JSON fields
+export function toExtractedDataJson(
+  data: ExtractedReceiptData
+): ExtractedReceiptDataJson {
+  // Convert to plain object that Prisma can store as JSON
+  return JSON.parse(JSON.stringify(data));
 }
 
 export interface DocumentMatch {
@@ -141,11 +150,11 @@ export function validateExtractedData(
     type: (typeof obj.type === "string"
       ? obj.type
       : "other") as ExtractedReceiptData["type"],
-    vendor: typeof obj.vendor === "string" ? obj.vendor : null,
-    amount: typeof obj.amount === "number" ? obj.amount : null,
+    vendor: typeof obj.vendor === "string" ? obj.vendor : undefined,
+    amount: typeof obj.amount === "number" ? obj.amount : undefined,
     currency: typeof obj.currency === "string" ? obj.currency : "USD",
-    date: typeof obj.date === "string" ? obj.date : null,
-    tax: typeof obj.tax === "number" ? obj.tax : null,
+    date: typeof obj.date === "string" ? obj.date : undefined,
+    tax: typeof obj.tax === "number" ? obj.tax : undefined,
     items: Array.isArray(obj.items)
       ? (obj.items as ExtractedReceiptData["items"])
       : undefined,

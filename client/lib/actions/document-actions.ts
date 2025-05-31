@@ -2,6 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { Prisma } from "@/generated/prisma";
 import {
   generatePresignedUrl,
   validateFileType,
@@ -24,6 +25,7 @@ import {
   toDocumentType,
   mapPrismaDocumentMatch,
   validateExtractedData,
+  toExtractedDataJson,
 } from "@/lib/types/documents";
 
 // Validation schemas
@@ -176,7 +178,9 @@ export async function processDocument(
         where: { id: document.id },
         data: {
           processingStatus: "COMPLETED",
-          extractedData: extractedData,
+          extractedData: toExtractedDataJson(
+            extractedData
+          ) as unknown as Prisma.InputJsonValue,
           extractedAmount: extractedData.amount,
           extractedDate: extractedData.date
             ? new Date(extractedData.date)
@@ -279,11 +283,11 @@ export async function processDocument(
           document: errorDocument,
           extractedData: {
             type: "other" as const,
-            vendor: null,
-            amount: null,
+            vendor: undefined,
+            amount: undefined,
             currency: "USD",
-            date: null,
-            tax: null,
+            date: undefined,
+            tax: undefined,
             confidence: 0,
           },
           matches: [],

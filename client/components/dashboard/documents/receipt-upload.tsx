@@ -43,112 +43,120 @@ export function ReceiptUpload({
 }: ReceiptUploadProps) {
   const [uploads, setUploads] = useState<FileUpload[]>([]);
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const newUploads: FileUpload[] = acceptedFiles.map((file) => ({
-      id: Math.random().toString(36).substring(7),
-      file,
-      status: "uploading",
-      progress: 0,
-    }));
+  const processFile = useCallback(
+    async (upload: FileUpload) => {
+      try {
+        // Update status to uploading
+        setUploads((prev) =>
+          prev.map((u) => (u.id === upload.id ? { ...u, progress: 10 } : u))
+        );
 
-    setUploads((prev) => [...prev, ...newUploads]);
+        // Step 1: Get presigned URL
+        const uploadResult = await generateUploadUrl({
+          fileName: upload.file.name,
+          fileType: upload.file.type,
+          fileSize: upload.file.size,
+        });
 
-    // Process each file
-    for (const upload of newUploads) {
-      await processFile(upload);
-    }
-  }, []);
+        if (!uploadResult.success || !uploadResult.data) {
+          throw new Error(uploadResult.error || "Failed to get upload URL");
+        }
 
-  const processFile = async (upload: FileUpload) => {
-    try {
-      // Update status to uploading
-      setUploads((prev) =>
-        prev.map((u) => (u.id === upload.id ? { ...u, progress: 10 } : u))
-      );
+        const presignedData = uploadResult.data;
 
-      // Step 1: Get presigned URL
-      const uploadResult = await generateUploadUrl({
-        fileName: upload.file.name,
-        fileType: upload.file.type,
-        fileSize: upload.file.size,
-      });
+        // Update progress
+        setUploads((prev) =>
+          prev.map((u) => (u.id === upload.id ? { ...u, progress: 30 } : u))
+        );
 
-      if (!uploadResult.success || !uploadResult.data) {
-        throw new Error(uploadResult.error || "Failed to get upload URL");
-      }
+        // Step 2: Upload to S3
+        const uploadResponse = await fetch(presignedData.uploadUrl, {
+          method: "PUT",
+          body: upload.file,
+          headers: {
+            "Content-Type": upload.file.type,
+          },
+        });
 
-      const presignedData = uploadResult.data;
+        if (!uploadResponse.ok) {
+          throw new Error("Failed to upload file");
+        }
 
-      // Update progress
-      setUploads((prev) =>
-        prev.map((u) => (u.id === upload.id ? { ...u, progress: 30 } : u))
-      );
-
-      // Step 2: Upload to S3
-      const uploadResponse = await fetch(presignedData.uploadUrl, {
-        method: "PUT",
-        body: upload.file,
-        headers: {
-          "Content-Type": upload.file.type,
-        },
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error("Failed to upload file");
-      }
-
-      // Update progress and status
-      setUploads((prev) =>
-        prev.map((u) =>
-          u.id === upload.id ? { ...u, progress: 60, status: "processing" } : u
-        )
-      );
-
-      // Step 3: Process with AI
-      const processResult = await processDocument({
-        fileUrl: presignedData.fileUrl,
-        fileKey: presignedData.fileKey,
-        fileName: upload.file.name,
-        fileType: upload.file.type,
-        fileSize: upload.file.size,
-      });
-
-      if (processResult.success && processResult.data) {
-        // Success
+        // Update progress and status
         setUploads((prev) =>
           prev.map((u) =>
             u.id === upload.id
-              ? {
-                  ...u,
-                  progress: 100,
-                  status: "completed",
-                  result: processResult.data,
-                }
+              ? { ...u, progress: 60, status: "processing" }
               : u
           )
         );
 
-        toast.success(`Receipt processed successfully: ${upload.file.name}`);
-        onUploadComplete?.(processResult.data);
-      } else {
-        throw new Error(processResult.error || "Processing failed");
+        // Step 3: Process with AI
+        const processResult = await processDocument({
+          fileUrl: presignedData.fileUrl,
+          fileKey: presignedData.fileKey,
+          fileName: upload.file.name,
+          fileType: upload.file.type,
+          fileSize: upload.file.size,
+        });
+
+        if (processResult.success && processResult.data) {
+          // Success
+          setUploads((prev) =>
+            prev.map((u) =>
+              u.id === upload.id
+                ? {
+                    ...u,
+                    progress: 100,
+                    status: "completed",
+                    result: processResult.data,
+                  }
+                : u
+            )
+          );
+
+          toast.success(`Receipt processed successfully: ${upload.file.name}`);
+          onUploadComplete?.(processResult.data);
+        } else {
+          throw new Error(processResult.error || "Processing failed");
+        }
+      } catch (error) {
+        console.error("Upload error:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : "Upload failed";
+
+        setUploads((prev) =>
+          prev.map((u) =>
+            u.id === upload.id
+              ? { ...u, status: "error", error: errorMessage }
+              : u
+          )
+        );
+
+        toast.error(`Failed to process ${upload.file.name}: ${errorMessage}`);
       }
-    } catch (error) {
-      console.error("Upload error:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Upload failed";
+    },
+    [onUploadComplete]
+  );
 
-      setUploads((prev) =>
-        prev.map((u) =>
-          u.id === upload.id
-            ? { ...u, status: "error", error: errorMessage }
-            : u
-        )
-      );
+  const onDrop = useCallback(
+    async (acceptedFiles: File[]) => {
+      const newUploads: FileUpload[] = acceptedFiles.map((file) => ({
+        id: Math.random().toString(36).substring(7),
+        file,
+        status: "uploading",
+        progress: 0,
+      }));
 
-      toast.error(`Failed to process ${upload.file.name}: ${errorMessage}`);
-    }
-  };
+      setUploads((prev) => [...prev, ...newUploads]);
+
+      // Process each file
+      for (const upload of newUploads) {
+        await processFile(upload);
+      }
+    },
+    [processFile]
+  );
 
   const removeUpload = (id: string) => {
     setUploads((prev) => prev.filter((u) => u.id !== id));
@@ -185,10 +193,15 @@ export function ReceiptUpload({
             ) : (
               <div>
                 <p className="text-lg font-medium mb-2">
-                  Drag & drop receipts here, or click to browse
+                  Drag & drop receipts and invoices here, or click to browse
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Supports JPEG, PNG, WebP, and PDF files up to 10MB
+                  Upload receipts, invoices, and financial documents (JPEG, PNG,
+                  WebP, PDF up to 10MB)
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  ⚠️ Other document types will be automatically detected and
+                  filtered
                 </p>
               </div>
             )}
@@ -259,20 +272,65 @@ export function ReceiptUpload({
 
                   {upload.result && (
                     <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
-                      <p>
-                        <span className="font-medium">Vendor:</span>{" "}
-                        {upload.result.extractedData.vendor || "Unknown"}
-                      </p>
-                      <p>
-                        <span className="font-medium">Amount:</span> $
-                        {upload.result.extractedData.amount?.toFixed(2) ||
-                          "0.00"}
-                      </p>
-                      <p>
-                        <span className="font-medium">Matches:</span>{" "}
-                        {upload.result.matches.length} potential transaction
-                        {upload.result.matches.length !== 1 ? "s" : ""}
-                      </p>
+                      {upload.result.extractedData.confidence === 0 ? (
+                        <div className="text-orange-600">
+                          <p className="font-medium">
+                            ⚠️ Non-receipt document detected
+                          </p>
+                          <p>
+                            {upload.result.extractedData.notes ||
+                              "This doesn't appear to be a receipt or invoice"}
+                          </p>
+                        </div>
+                      ) : upload.result.extractedData.confidence < 0.5 ? (
+                        <div className="text-yellow-600">
+                          <p className="font-medium">
+                            ⚠️ Low confidence extraction
+                          </p>
+                          <p>
+                            <span className="font-medium">Vendor:</span>{" "}
+                            {upload.result.extractedData.vendor || "Unknown"}
+                          </p>
+                          <p>
+                            <span className="font-medium">Amount:</span> $
+                            {upload.result.extractedData.amount?.toFixed(2) ||
+                              "0.00"}
+                          </p>
+                          <p className="text-xs mt-1">
+                            Low confidence (
+                            {Math.round(
+                              upload.result.extractedData.confidence * 100
+                            )}
+                            %) - Please verify manually
+                          </p>
+                        </div>
+                      ) : (
+                        <div>
+                          <p>
+                            <span className="font-medium">Vendor:</span>{" "}
+                            {upload.result.extractedData.vendor || "Unknown"}
+                          </p>
+                          <p>
+                            <span className="font-medium">Amount:</span> $
+                            {upload.result.extractedData.amount?.toFixed(2) ||
+                              "0.00"}
+                          </p>
+                          <p>
+                            <span className="font-medium">Matches:</span>{" "}
+                            {upload.result.matches.length} potential transaction
+                            {upload.result.matches.length !== 1 ? "s" : ""}
+                          </p>
+                          {upload.result.extractedData.confidence < 0.8 && (
+                            <p className="text-xs mt-1 text-yellow-600">
+                              Confidence:{" "}
+                              {Math.round(
+                                upload.result.extractedData.confidence * 100
+                              )}
+                              %
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

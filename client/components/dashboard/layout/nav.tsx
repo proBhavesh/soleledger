@@ -4,15 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
-  BarChart3,
   CreditCard,
-  FileText,
   Home,
   Receipt,
   Settings,
-  Upload,
   Users,
   Landmark,
+  Link2,
+  FileBarChart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -52,21 +51,15 @@ const menuGroups = [
     title: "Documents",
     items: [
       {
-        title: "All Documents",
-        href: "/dashboard/documents",
-        icon: FileText,
-        roles: ["BUSINESS_OWNER", "ACCOUNTANT", "ADMIN"],
-      },
-      {
-        title: "Upload",
-        href: "/dashboard/upload",
-        icon: Upload,
-        roles: ["BUSINESS_OWNER", "ACCOUNTANT", "ADMIN"],
-      },
-      {
         title: "Receipts",
         href: "/dashboard/receipts",
         icon: Receipt,
+        roles: ["BUSINESS_OWNER", "ACCOUNTANT", "ADMIN"],
+      },
+      {
+        title: "Reconciliation",
+        href: "/dashboard/reconciliation",
+        icon: Link2,
         roles: ["BUSINESS_OWNER", "ACCOUNTANT", "ADMIN"],
       },
     ],
@@ -77,7 +70,7 @@ const menuGroups = [
       {
         title: "Reports",
         href: "/dashboard/reports",
-        icon: BarChart3,
+        icon: FileBarChart,
         roles: ["BUSINESS_OWNER", "ACCOUNTANT", "ADMIN"],
       },
     ],

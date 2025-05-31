@@ -1,4 +1,6 @@
-import { auth } from "@/lib/auth";
+"use client";
+
+import { useState, useEffect, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -6,552 +8,291 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Calendar,
-  CheckCircle2,
-  ClockIcon,
-  MoreHorizontal,
-  DownloadIcon,
-  EyeIcon,
-  FileIcon,
-  FileTextIcon,
-  FilterIcon,
-  FolderIcon,
-  ImageIcon,
-  PlusIcon,
-  Receipt,
-  SearchIcon,
-  UploadIcon,
-} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { FileText, UploadIcon } from "lucide-react";
+import { getRecentDocuments } from "@/lib/actions/document-actions";
+import type { RecentDocument } from "@/lib/types/documents";
+import { toast } from "sonner";
 
-export default async function ReceiptsPage() {
-  const session = await auth();
-  const userRole = session?.user?.role || "BUSINESS_OWNER";
+// Import our new organized components
+import { ReceiptsUpload } from "@/components/dashboard/receipts/receipts-upload";
+import { ReceiptsTable } from "@/components/dashboard/receipts/receipts-table";
+import { ReceiptsGrid } from "@/components/dashboard/receipts/receipts-grid";
+import { ReceiptsFilters } from "@/components/dashboard/receipts/receipts-filters";
 
-  // Mock receipt data
-  const receipts = [
-    {
-      id: "rec_1",
-      date: "2023-10-15",
-      vendor: "Office Depot",
-      category: "Office Supplies",
-      total: 249.99,
-      status: "processed",
-      type: "receipt",
-      fileType: "pdf",
-    },
-    {
-      id: "rec_2",
-      date: "2023-10-12",
-      vendor: "Adobe",
-      category: "Software",
-      total: 59.99,
-      status: "pending",
-      type: "receipt",
-      fileType: "pdf",
-    },
-    {
-      id: "rec_3",
-      date: "2023-10-10",
-      vendor: "Shell Gas Station",
-      category: "Travel",
-      total: 45.5,
-      status: "processed",
-      type: "receipt",
-      fileType: "jpg",
-    },
-    {
-      id: "rec_4",
-      date: "2023-10-05",
-      vendor: "State Tax Board",
-      category: "Taxes",
-      total: 1200.0,
-      status: "pending",
-      type: "document",
-      fileType: "pdf",
-    },
-    {
-      id: "rec_5",
-      date: "2023-10-03",
-      vendor: "Client Contract",
-      category: "Legal",
-      total: 0,
-      status: "pending",
-      type: "document",
-      fileType: "docx",
-    },
-  ];
+export default function ReceiptsPage() {
+  const [documents, setDocuments] = useState<RecentDocument[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [showUpload, setShowUpload] = useState(false);
+  const uploadRef = useRef<HTMLDivElement>(null);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }).format(date);
+  const fetchDocuments = async () => {
+    try {
+      setIsLoading(true);
+      const result = await getRecentDocuments();
+      if (result.success && result.data) {
+        setDocuments(result.data.documents);
+      } else {
+        console.error("Error fetching documents:", result.error);
+        toast.error("Failed to fetch documents");
+      }
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      toast.error("Failed to fetch documents");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(amount);
+  useEffect(() => {
+    fetchDocuments();
+  }, []);
+
+  const handleUploadComplete = () => {
+    // Refresh the documents list
+    fetchDocuments();
+    toast.success("Document uploaded and processed successfully!");
   };
 
-  const getFileIcon = (fileType: string, type: string) => {
-    if (fileType === "pdf")
-      return <FileTextIcon className="h-5 w-5 text-red-500" />;
-    if (fileType === "jpg" || fileType === "png")
-      return <ImageIcon className="h-5 w-5 text-blue-500" />;
-    if (fileType === "docx")
-      return <FileIcon className="h-5 w-5 text-blue-700" />;
-    if (type === "receipt")
-      return <Receipt className="h-5 w-5 text-green-500" />;
-    return <FolderIcon className="h-5 w-5 text-amber-500" />;
+  const handleUploadClick = () => {
+    setShowUpload(true);
+    // Scroll to upload section
+    setTimeout(() => {
+      uploadRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
   };
+
+  // Filter documents based on search and status
+  const filteredDocuments = documents.filter((doc) => {
+    const matchesSearch =
+      doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (doc.extractedVendor?.toLowerCase().includes(searchQuery.toLowerCase()) ??
+        false);
+
+    const matchesStatus =
+      statusFilter === "all" || doc.processingStatus === statusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  // Separate receipts from other documents
+  const receipts = filteredDocuments.filter(
+    (doc) => doc.extractedAmount !== undefined && doc.extractedAmount !== null
+  );
+
+  const otherDocuments = filteredDocuments.filter(
+    (doc) => doc.extractedAmount === undefined || doc.extractedAmount === null
+  );
+
+  const pendingDocuments = filteredDocuments.filter(
+    (doc) =>
+      doc.processingStatus === "PENDING" ||
+      doc.processingStatus === "PROCESSING"
+  );
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col">
-        <h1 className="text-3xl font-bold tracking-tight">
-          Receipts & Documents
-        </h1>
-        <p className="text-muted-foreground">
-          Manage your receipts, invoices, and important documents
-        </p>
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Receipts & Documents
+          </h1>
+          <p className="text-muted-foreground">
+            Manage your receipts, invoices, and important documents with AI
+            processing
+          </p>
+        </div>
+        <Button onClick={handleUploadClick}>
+          <UploadIcon className="mr-2 h-4 w-4" />
+          Upload Documents
+        </Button>
       </div>
 
-      <Tabs defaultValue="all" className="w-full">
-        <div className="flex justify-between items-center">
-          <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="receipts">Receipts</TabsTrigger>
-            <TabsTrigger value="documents">Documents</TabsTrigger>
-            <TabsTrigger value="pending">Pending Review</TabsTrigger>
-          </TabsList>
-          <Button>
-            <UploadIcon className="mr-2 h-4 w-4" />
-            Upload
-          </Button>
-        </div>
-
-        <TabsContent value="all" className="mt-4">
+      {/* Upload Section */}
+      {showUpload && (
+        <div ref={uploadRef}>
           <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle>All Files</CardTitle>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm">
-                    <FilterIcon className="mr-2 h-4 w-4" />
-                    Filter
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <DownloadIcon className="mr-2 h-4 w-4" />
-                    Export
-                  </Button>
-                </div>
-              </div>
+            <CardHeader>
+              <CardTitle>Upload Receipts & Documents</CardTitle>
               <CardDescription>
-                Manage all your uploaded receipts and documents
+                Our AI will automatically extract data and match receipts to
+                your transactions
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex w-full max-w-sm items-center space-x-2 mb-4">
-                <Input
-                  type="search"
-                  placeholder="Search files..."
-                  className="h-9"
-                />
-                <Button type="submit" size="sm" variant="ghost">
-                  <SearchIcon className="h-4 w-4" />
-                </Button>
-                <Button type="button" size="sm" variant="ghost">
-                  <Calendar className="h-4 w-4" />
-                </Button>
-              </div>
+              <ReceiptsUpload
+                onUploadComplete={handleUploadComplete}
+                maxFiles={10}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[80px]">Type</TableHead>
-                      <TableHead className="w-[110px]">Date</TableHead>
-                      <TableHead>Vendor/Title</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="w-[70px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {receipts.map((receipt) => (
-                      <TableRow key={receipt.id}>
-                        <TableCell>
-                          {getFileIcon(receipt.fileType, receipt.type)}
-                        </TableCell>
-                        <TableCell>{formatDate(receipt.date)}</TableCell>
-                        <TableCell className="font-medium">
-                          {receipt.vendor}
-                        </TableCell>
-                        <TableCell>{receipt.category}</TableCell>
-                        <TableCell className="text-right">
-                          {receipt.total > 0
-                            ? formatCurrency(receipt.total)
-                            : "-"}
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
-                            ${
-                              receipt.status === "processed"
-                                ? "bg-emerald-100 text-emerald-800"
-                                : "bg-amber-100 text-amber-800"
-                            }`}
-                          >
-                            <span className="flex items-center">
-                              {receipt.status === "processed" ? (
-                                <CheckCircle2 className="mr-1 h-3 w-3" />
-                              ) : (
-                                <ClockIcon className="mr-1 h-3 w-3" />
-                              )}
-                              {receipt.status === "processed"
-                                ? "Processed"
-                                : "Pending"}
-                            </span>
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                              >
-                                <span className="sr-only">Open menu</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
-                                <EyeIcon className="mr-2 h-4 w-4" />
-                                View
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <DownloadIcon className="mr-2 h-4 w-4" />
-                                Download
-                              </DropdownMenuItem>
-                              {receipt.status === "pending" && (
-                                <DropdownMenuItem>
-                                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                                  Mark as processed
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem>Edit details</DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+      {/* Filters */}
+      <ReceiptsFilters
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        onRefresh={fetchDocuments}
+      />
 
-              <div className="flex items-center justify-between pt-4">
-                <div className="text-sm text-muted-foreground">
-                  Showing <strong>5</strong> of <strong>25</strong> files
+      <Tabs defaultValue="all" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="all">
+            All ({filteredDocuments.length})
+          </TabsTrigger>
+          <TabsTrigger value="receipts">
+            Receipts ({receipts.length})
+          </TabsTrigger>
+          <TabsTrigger value="documents">
+            Documents ({otherDocuments.length})
+          </TabsTrigger>
+          <TabsTrigger value="pending">
+            Pending ({pendingDocuments.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="all" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle>All Files</CardTitle>
+              <CardDescription>
+                View all your uploaded receipts and documents
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                    <p className="text-muted-foreground">
+                      Loading documents...
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Button variant="outline" size="sm" disabled>
-                    Previous
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    Next
-                  </Button>
-                </div>
-              </div>
+              ) : (
+                <ReceiptsTable documents={filteredDocuments} />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="receipts" className="mt-4">
+        <TabsContent value="receipts" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Receipts</CardTitle>
-              <CardDescription>Manage your expense receipts</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-6">
-                View and manage your uploaded receipts. Receipts are
-                automatically categorized and can be linked to transactions.
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {receipts
-                  .filter((r) => r.type === "receipt")
-                  .map((receipt) => (
-                    <Card key={receipt.id} className="overflow-hidden">
-                      <div className="h-32 bg-muted flex items-center justify-center">
-                        {getFileIcon(receipt.fileType, receipt.type)}
-                      </div>
-                      <CardContent className="p-4">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h3 className="font-medium">{receipt.vendor}</h3>
-                            <p className="text-sm text-muted-foreground">
-                              {formatDate(receipt.date)}
-                            </p>
-                          </div>
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium
-                          ${
-                            receipt.status === "processed"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : "bg-amber-100 text-amber-800"
-                          }`}
-                          >
-                            {receipt.status === "processed"
-                              ? "Processed"
-                              : "Pending"}
-                          </span>
-                        </div>
-                        <div className="mt-2 pt-2 border-t">
-                          <div className="flex justify-between">
-                            <span className="text-sm">Amount:</span>
-                            <span className="font-medium">
-                              {formatCurrency(receipt.total)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm">Category:</span>
-                            <span>{receipt.category}</span>
-                          </div>
-                        </div>
-                        <div className="mt-3 flex space-x-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full"
-                          >
-                            <EyeIcon className="mr-2 h-3.5 w-3.5" />
-                            View
-                          </Button>
-                          <Button size="sm" variant="ghost" className="px-2">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-
-                <Card className="overflow-hidden border-dashed">
-                  <div className="h-32 bg-muted flex items-center justify-center">
-                    <Button variant="ghost" className="rounded-full h-16 w-16">
-                      <PlusIcon className="h-8 w-8 text-muted-foreground" />
-                    </Button>
-                  </div>
-                  <CardContent className="p-4 flex flex-col items-center justify-center">
-                    <h3 className="font-medium text-center">
-                      Upload New Receipt
-                    </h3>
-                    <p className="text-sm text-muted-foreground text-center mt-1">
-                      Drag & drop or click to upload
-                    </p>
-                    <Button className="mt-3" size="sm">
-                      <UploadIcon className="mr-2 h-3.5 w-3.5" />
-                      Upload
-                    </Button>
-                  </CardContent>
-                </Card>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="documents" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Documents</CardTitle>
               <CardDescription>
-                Manage important business documents
+                Manage your expense receipts with AI-powered data extraction
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground mb-6">
-                View and manage important business documents like contracts, tax
-                filings, and legal paperwork.
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {receipts
-                  .filter((r) => r.type === "document")
-                  .map((doc) => (
-                    <Card key={doc.id} className="overflow-hidden">
-                      <div className="h-32 bg-muted flex items-center justify-center">
-                        {getFileIcon(doc.fileType, doc.type)}
-                      </div>
-                      <CardContent className="p-4">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h3 className="font-medium">{doc.vendor}</h3>
-                            <p className="text-sm text-muted-foreground">
-                              {formatDate(doc.date)}
-                            </p>
-                          </div>
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium
-                          ${
-                            doc.status === "processed"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : "bg-amber-100 text-amber-800"
-                          }`}
-                          >
-                            {doc.status === "processed"
-                              ? "Processed"
-                              : "Pending"}
-                          </span>
-                        </div>
-                        <div className="mt-2 pt-2 border-t">
-                          <div className="flex justify-between">
-                            <span className="text-sm">Category:</span>
-                            <span>{doc.category}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm">File Type:</span>
-                            <span className="uppercase">{doc.fileType}</span>
-                          </div>
-                        </div>
-                        <div className="mt-3 flex space-x-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full"
-                          >
-                            <EyeIcon className="mr-2 h-3.5 w-3.5" />
-                            View
-                          </Button>
-                          <Button size="sm" variant="ghost" className="px-2">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-
-                <Card className="overflow-hidden border-dashed">
-                  <div className="h-32 bg-muted flex items-center justify-center">
-                    <Button variant="ghost" className="rounded-full h-16 w-16">
-                      <PlusIcon className="h-8 w-8 text-muted-foreground" />
-                    </Button>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                    <p className="text-muted-foreground">Loading receipts...</p>
                   </div>
-                  <CardContent className="p-4 flex flex-col items-center justify-center">
-                    <h3 className="font-medium text-center">
-                      Upload New Document
-                    </h3>
-                    <p className="text-sm text-muted-foreground text-center mt-1">
-                      Drag & drop or click to upload
-                    </p>
-                    <Button className="mt-3" size="sm">
-                      <UploadIcon className="mr-2 h-3.5 w-3.5" />
-                      Upload
-                    </Button>
-                  </CardContent>
-                </Card>
-              </div>
+                </div>
+              ) : receipts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <FileText className="h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">
+                    No receipts yet
+                  </h3>
+                  <p className="text-muted-foreground mb-4 max-w-md">
+                    Upload your first receipt to get started with automated data
+                    extraction and transaction matching.
+                  </p>
+                  <Button onClick={handleUploadClick}>
+                    <UploadIcon className="mr-2 h-4 w-4" />
+                    Upload Receipt
+                  </Button>
+                </div>
+              ) : (
+                <ReceiptsGrid
+                  documents={receipts}
+                  onUploadClick={handleUploadClick}
+                />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="pending" className="mt-4">
+        <TabsContent value="documents" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Other Documents</CardTitle>
+              <CardDescription>Non-receipt documents and files</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                    <p className="text-muted-foreground">
+                      Loading documents...
+                    </p>
+                  </div>
+                </div>
+              ) : otherDocuments.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <FileText className="h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">
+                    No documents yet
+                  </h3>
+                  <p className="text-muted-foreground mb-4 max-w-md">
+                    Documents that aren&apos;t receipts or invoices will appear
+                    here.
+                  </p>
+                  <Button onClick={handleUploadClick}>
+                    <UploadIcon className="mr-2 h-4 w-4" />
+                    Upload Documents
+                  </Button>
+                </div>
+              ) : (
+                <ReceiptsGrid
+                  documents={otherDocuments}
+                  onUploadClick={handleUploadClick}
+                />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="pending" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Pending Review</CardTitle>
               <CardDescription>
-                Documents and receipts awaiting your review
+                Documents and receipts awaiting processing or review
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border mb-5">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[80px]">Type</TableHead>
-                      <TableHead className="w-[110px]">Date</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead className="w-[120px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {receipts
-                      .filter((r) => r.status === "pending")
-                      .map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell>
-                            {getFileIcon(item.fileType, item.type)}
-                          </TableCell>
-                          <TableCell>{formatDate(item.date)}</TableCell>
-                          <TableCell className="font-medium">
-                            {item.vendor}
-                          </TableCell>
-                          <TableCell>{item.category}</TableCell>
-                          <TableCell className="text-right">
-                            {item.total > 0 ? formatCurrency(item.total) : "-"}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex space-x-2">
-                              <Button size="sm" variant="outline">
-                                <EyeIcon className="mr-2 h-3.5 w-3.5" />
-                                Review
-                              </Button>
-                              <Button size="sm" variant="ghost">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {userRole === "ACCOUNTANT" && (
-                <Card className="bg-amber-50 border-amber-200">
-                  <CardContent className="p-4">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div>
-                        <h3 className="font-medium text-amber-800">
-                          Accountant Actions
-                        </h3>
-                        <p className="text-sm text-amber-700 mt-1">
-                          Review these documents to help your client categorize
-                          and process their receipts correctly.
-                        </p>
-                      </div>
-                      <Button className="bg-amber-600 hover:bg-amber-700">
-                        Review All Pending
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                    <p className="text-muted-foreground">
+                      Loading pending items...
+                    </p>
+                  </div>
+                </div>
+              ) : pendingDocuments.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <FileText className="h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">All caught up!</h3>
+                  <p className="text-muted-foreground mb-4 max-w-md">
+                    No documents are pending review. All your uploads have been
+                    processed.
+                  </p>
+                </div>
+              ) : (
+                <ReceiptsTable documents={pendingDocuments} />
               )}
             </CardContent>
           </Card>

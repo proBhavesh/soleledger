@@ -37,6 +37,8 @@ model User {
   receivedInvitations TeamInvitation[]   @relation("InvitationReceiver")
   sentInvitations     TeamInvitation[]   @relation("InvitationSender")
   transactions        Transaction[]      @relation("TransactionCreator")
+  reconReviews        ReconciliationStatus[] @relation("ReconciliationReviewer")
+  generatedReports    ReportData[]       @relation("ReportGenerator")
 }
 
 model Account {
@@ -118,6 +120,7 @@ model Business {
   categories   Category[]
   documents    Document[]
   reports      Report[]
+  reportData   ReportData[]   @relation("ReportData")
   tasks        Task[]
   transactions Transaction[]
 }
@@ -250,6 +253,7 @@ model Transaction {
   updatedAt     DateTime        @updatedAt
   documents     Document[]
   matches       DocumentMatch[]
+  reconciliation ReconciliationStatus?
   bankAccount   BankAccount?    @relation(fields: [bankAccountId], references: [id])
   business      Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
   category      Category?       @relation(fields: [categoryId], references: [id])
@@ -292,6 +296,7 @@ model Document {
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
   user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   matches       DocumentMatch[]
+  reconciliation ReconciliationStatus[]
 }
 
 model DocumentMatch {
@@ -347,6 +352,43 @@ model Task {
   assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
   business    Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
   creator     User         @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+}
+
+model ReconciliationStatus {
+  id            String @id @default(cuid())
+  transactionId String @unique
+  documentId    String?
+  status        ReconciliationStatusType @default(UNMATCHED)
+  confidence    Float?
+  manuallySet   Boolean @default(false)
+  notes         String?
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  document      Document? @relation(fields: [documentId], references: [id])
+  reviewer      User? @relation("ReconciliationReviewer", fields: [reviewedBy], references: [id])
+}
+
+model ReportData {
+  id          String @id @default(cuid())
+  businessId  String
+  type        ReportType
+  title       String
+  data        Json
+  parameters  Json
+  period      String
+  startDate   DateTime
+  endDate     DateTime
+  generatedAt DateTime @default(now())
+  generatedBy String
+  isScheduled Boolean @default(false)
+  scheduleCron String?
+  
+  business    Business @relation("ReportData", fields: [businessId], references: [id], onDelete: Cascade)
+  generator   User @relation("ReportGenerator", fields: [generatedBy], references: [id])
 }
 
 enum UserRole {
@@ -413,4 +455,23 @@ enum MatchStatus {
   CONFIRMED
   REJECTED
   MANUAL
+}
+
+enum ReconciliationStatusType {
+  UNMATCHED
+  MATCHED
+  PARTIALLY_MATCHED
+  PENDING_REVIEW
+  MANUALLY_MATCHED
+  EXCLUDED
+}
+
+enum ReportType {
+  PROFIT_LOSS
+  BALANCE_SHEET
+  CASH_FLOW
+  EXPENSE_CATEGORIES
+  RECONCILIATION_SUMMARY
+  TAX_SUMMARY
+  MONTHLY_SUMMARY
 }
