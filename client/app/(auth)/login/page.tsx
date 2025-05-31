@@ -28,7 +28,7 @@ type FormData = z.infer<typeof userAuthSchema>;
 function LoginContent() {
   const [isPending, setIsPending] = useState(false);
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/pricing";
+  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
   const {
     register,
