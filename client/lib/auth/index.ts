@@ -95,9 +95,64 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.AUTH_GOOGLE_ID || "",
       clientSecret: process.env.AUTH_GOOGLE_SECRET || "",
       allowDangerousEmailAccountLinking: true,
+      authorization: {
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code",
+        },
+      },
     }),
   ],
   callbacks: {
+    async signIn({ user, account }) {
+      // Handle Google OAuth sign-in
+      if (account?.provider === "google") {
+        try {
+          // Check if user already exists
+          const existingUser = await db.user.findUnique({
+            where: { email: user.email! },
+          });
+
+          if (!existingUser) {
+            // Create new user with Google OAuth
+            const newUser = await db.user.create({
+              data: {
+                email: user.email!,
+                name: user.name || "",
+                image: user.image,
+                role: "BUSINESS_OWNER", // Default role for Google sign-ups
+                emailVerified: new Date(), // Google emails are pre-verified
+              },
+            });
+
+            // Create business profile for new Google users
+            await db.businessProfile.create({
+              data: {
+                userId: newUser.id,
+                businessName: `${user.name}'s Business`,
+              },
+            });
+
+            // Create a default business
+            await db.business.create({
+              data: {
+                name: `${user.name}'s Business`,
+                ownerId: newUser.id,
+                industry: "Other",
+              },
+            });
+          }
+
+          return true;
+        } catch (error) {
+          console.error("Error during Google sign-in:", error);
+          return false;
+        }
+      }
+
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
