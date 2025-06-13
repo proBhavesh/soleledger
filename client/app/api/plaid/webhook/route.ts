@@ -235,7 +235,7 @@ async function syncTransactions(bankAccount: BankAccountWithAccess) {
             bankAccountId: bankAccount.id,
             type: transaction.amount > 0 ? "EXPENSE" : "INCOME",
             amount: Math.abs(transaction.amount),
-            currency: transaction.iso_currency_code ?? "USD",
+            currency: transaction.iso_currency_code ?? "CAD",
             date: new Date(transaction.date),
             description: transaction.name,
             reference: transaction.payment_meta?.reference_number,

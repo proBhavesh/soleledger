@@ -10,9 +10,9 @@ export function cn(...inputs: ClassValue[]) {
  */
 export function formatCurrency(
   amount: number,
-  currency: string = "USD",
+  currency: string = "CAD",
   options?: Intl.NumberFormatOptions,
-  locale: string = "en-US"
+  locale: string = "en-CA"
 ): string {
   return new Intl.NumberFormat(locale, {
     style: "currency",
@@ -29,7 +29,7 @@ export function formatDate(
     month: "short",
     day: "numeric",
   },
-  locale: string = "en-US"
+  locale: string = "en-CA"
 ): string {
   if (!date) return "N/A";
 

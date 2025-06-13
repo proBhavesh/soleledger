@@ -148,7 +148,7 @@ export async function exchangePublicToken(
           data: {
             name: account.name,
             balance: account.balances.current ?? 0,
-            currency: account.balances.iso_currency_code ?? "USD",
+            currency: account.balances.iso_currency_code ?? "CAD",
             accountNumber: account.mask ? `****${account.mask}` : undefined,
             institution: metadata.institution?.name ?? "Unknown Bank",
             plaidItemId: itemId,

@@ -90,7 +90,7 @@ export const bankAccountSchema = z.object({
   accountNumber: z.string().optional(),
   routingNumber: z.string().optional(),
   balance: z.number().optional(),
-  currency: z.string().default("USD"),
+  currency: z.string().default("CAD"),
 });
 
 // =======================================================

@@ -81,10 +81,9 @@ export const PLAID_ADDITIONAL_PRODUCTS = {
   RECURRING_TRANSACTIONS: true, // For detecting recurring payments
 };
 
-// Country codes for which Plaid will be enabled - now including Canada
+// Country codes for which Plaid will be enabled - Canada only
 export const PLAID_COUNTRY_CODES = [
-  CountryCode.Us,
-  CountryCode.Ca, // Adding Canada
+  CountryCode.Ca, // Canada only
 ] as const;
 
 // Get redirect URI from environment variables

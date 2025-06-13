@@ -126,7 +126,7 @@ export async function syncTransactionsEnhanced(
               categoryId,
               type,
               amount: Math.abs(transaction.amount),
-              currency: transaction.iso_currency_code ?? "USD",
+              currency: transaction.iso_currency_code ?? "CAD",
               date: new Date(transaction.date),
               description: transaction.merchant_name || transaction.name,
               notes: transaction.original_description,

@@ -28,8 +28,8 @@ export function formatRelativeDate(date: Date | string) {
  */
 export function formatCurrency(
   amount: number,
-  currency: string = "USD",
-  locale: string = "en-US"
+  currency: string = "CAD",
+  locale: string = "en-CA"
 ) {
   return new Intl.NumberFormat(locale, {
     style: "currency",

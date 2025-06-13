@@ -196,7 +196,7 @@ export async function refreshBalances(bankAccountId: string) {
       },
       data: {
         balance: plaidAccount.balances.current || 0,
-        currency: plaidAccount.balances.iso_currency_code || "USD",
+        currency: plaidAccount.balances.iso_currency_code || "CAD",
         lastSync: new Date(),
       },
     });

@@ -6,7 +6,7 @@ export const ReceiptDataSchema = z.object({
   type: z.enum(["receipt", "invoice", "statement", "other"]),
   vendor: z.string().optional(),
   amount: z.number().optional(),
-  currency: z.string().default("USD"),
+  currency: z.string().default("CAD"),
   date: z.string().optional(), // ISO date string
   tax: z.number().optional(),
   items: z
