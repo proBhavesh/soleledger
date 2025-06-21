@@ -16,7 +16,6 @@ import { BankAccountsSummary } from "@/components/dashboard/banking/bank-account
 import { RecurringTransactions } from "@/components/dashboard/transactions/recurring-transactions";
 import { getFinancialSummary, refreshTransactions } from "@/lib/actions/plaid";
 import { toast } from "sonner";
-import { DashboardHeader } from "@/components/dashboard/layout/dashboard-header";
 import { FinancialMetrics } from "@/components/dashboard/overview/financial-metrics";
 import { CashFlowChart } from "@/components/dashboard/charts/cash-flow-chart";
 import { IncomeExpenseChart } from "@/components/dashboard/charts/income-expense-chart";
@@ -129,11 +128,20 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <DashboardHeader
-        userName={userName}
-        showWelcomeBanner={showWelcomeBanner}
-        subscriptionStatus={subscriptionStatus}
-      />
+      {/* Simple welcome header */}
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-bold tracking-tight">
+          Welcome back, {userName}!
+        </h1>
+        {showWelcomeBanner && (
+          <div className="rounded-lg bg-green-50 border border-green-200 p-4">
+            <p className="text-sm text-green-800">
+              🎉 Subscription activated successfully! You now have access to all
+              features.
+            </p>
+          </div>
+        )}
+      </div>
 
       <Tabs defaultValue="overview" className="w-full">
         <TabsList>

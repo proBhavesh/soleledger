@@ -122,6 +122,39 @@ export const categorySchema = z.object({
 });
 
 // =======================================================
+// Chart of Accounts Types
+// =======================================================
+export const AccountTypeEnum = z.enum([
+  "ASSET",
+  "LIABILITY",
+  "EQUITY",
+  "INCOME",
+  "EXPENSE",
+]);
+
+export interface DefaultChartAccount {
+  code: string;
+  name: string;
+  type: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
+  sort: number;
+  parent?: string;
+}
+
+export interface ChartAccount {
+  id: string;
+  accountCode: string;
+  name: string;
+  accountType: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
+  description?: string;
+  parentId?: string;
+  isDefault: boolean;
+  isActive: boolean;
+  sortOrder?: number;
+  balance?: number;
+  subAccounts?: ChartAccount[];
+}
+
+// =======================================================
 // Document Types
 // =======================================================
 export const DocumentTypeEnum = z.enum([

@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileSettings } from "@/components/dashboard/settings/profile-settings";
 import { BusinessSettings } from "@/components/dashboard/settings/business-settings";
 import { SubscriptionSettings } from "@/components/dashboard/settings/subscription-settings";
+import { ChartOfAccountsSettings } from "@/components/dashboard/settings/chart-of-accounts-settings";
 
 export default function SettingsPage() {
   return (
@@ -17,9 +18,10 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="business">Business</TabsTrigger>
+          <TabsTrigger value="chart-of-accounts">Chart of Accounts</TabsTrigger>
           <TabsTrigger value="billing">Billing</TabsTrigger>
         </TabsList>
 
@@ -29,6 +31,10 @@ export default function SettingsPage() {
 
         <TabsContent value="business" className="space-y-4">
           <BusinessSettings />
+        </TabsContent>
+
+        <TabsContent value="chart-of-accounts" className="space-y-4">
+          <ChartOfAccountsSettings />
         </TabsContent>
 
         <TabsContent value="billing" className="space-y-4">

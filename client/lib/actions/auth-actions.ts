@@ -7,6 +7,7 @@ import {
   userRegistrationSchema,
   UserRoleEnum,
 } from "@/lib/types";
+import { createDefaultChartOfAccounts } from "./chart-of-accounts-actions";
 
 export async function loginAction(formData: FormData) {
   const email = formData.get("email") as string;
@@ -92,13 +93,16 @@ export async function registerAction(formData: FormData) {
       });
 
       // Create a default business for the user
-      await db.business.create({
+      const business = await db.business.create({
         data: {
           name: `${name}'s Business`,
           ownerId: user.id,
           industry: "Other", // Default industry
         },
       });
+
+      // Create default Chart of Accounts for the business
+      await createDefaultChartOfAccounts(business.id, user.id);
     } else if (role === "ACCOUNTANT") {
       await db.accountantProfile.create({
         data: {

@@ -1,5 +1,4 @@
 import { DashboardNav } from "@/components/dashboard/layout/nav";
-import { DashboardHeader } from "@/components/dashboard/layout/header";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
@@ -33,16 +32,11 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <DashboardHeader />
-      <div className="flex-1 items-start md:grid md:grid-cols-[260px_1fr] md:gap-4 lg:grid-cols-[280px_1fr]">
-        <aside className="fixed top-16 z-30 hidden h-[calc(100vh-5rem)] w-full shrink-0 md:sticky md:block overflow-y-auto">
-          <DashboardNav />
-        </aside>
-        <main className="flex w-full flex-col overflow-hidden p-6">
-          {children}
-        </main>
-      </div>
+    <div className="flex min-h-screen">
+      <aside className="w-[260px] lg:w-[280px] border-r bg-background">
+        <DashboardNav user={session.user} />
+      </aside>
+      <main className="flex-1 overflow-hidden p-6">{children}</main>
     </div>
   );
 }

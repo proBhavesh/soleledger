@@ -86,8 +86,9 @@ export async function syncTransactionsEnhanced(
         });
 
         if (!existingTransaction) {
-          // Determine transaction type based on amount
-          const type = transaction.amount > 0 ? "EXPENSE" : "INCOME";
+          // Determine transaction type and account type based on amount
+          const transactionType = transaction.amount > 0 ? "EXPENSE" : "INCOME";
+          const accountType = transaction.amount > 0 ? "EXPENSE" : "INCOME";
 
           // Get personal finance category if available
           let categoryId: string | undefined = undefined;
@@ -97,20 +98,52 @@ export async function syncTransactionsEnhanced(
               where: {
                 businessId,
                 name: transaction.personal_finance_category.detailed,
-                type,
+                accountType: accountType,
               },
             });
 
             if (category) {
               categoryId = category.id;
             } else {
+              // Find the next available account code in the appropriate range
+              const accountTypeRanges = {
+                INCOME: { start: 4000, end: 4999 },
+                EXPENSE: { start: 6000, end: 6999 },
+              };
+
+              const range = accountTypeRanges[accountType];
+
+              // Find the highest existing account code in this range
+              const existingCategories = await db.category.findMany({
+                where: {
+                  businessId,
+                  accountType: accountType,
+                  accountCode: {
+                    gte: range.start.toString(),
+                    lte: range.end.toString(),
+                  },
+                },
+                orderBy: {
+                  accountCode: "desc",
+                },
+                take: 1,
+              });
+
+              let nextAccountCode = range.start.toString();
+              if (existingCategories.length > 0) {
+                const lastCode = parseInt(existingCategories[0].accountCode);
+                nextAccountCode = (lastCode + 1).toString();
+              }
+
               // Create a new category based on Plaid's categorization
               const newCategory = await db.category.create({
                 data: {
                   businessId,
+                  accountCode: nextAccountCode,
                   name: transaction.personal_finance_category.detailed,
-                  type,
+                  accountType: accountType,
                   description: `Imported from ${transaction.personal_finance_category.primary}`,
+                  sortOrder: parseInt(nextAccountCode),
                   creatorId: userId,
                 },
               });
@@ -124,7 +157,7 @@ export async function syncTransactionsEnhanced(
               businessId,
               bankAccountId: bankAccount.id,
               categoryId,
-              type,
+              type: transactionType,
               amount: Math.abs(transaction.amount),
               currency: transaction.iso_currency_code ?? "CAD",
               date: new Date(transaction.date),

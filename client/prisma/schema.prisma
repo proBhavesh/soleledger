@@ -215,12 +215,15 @@ model Category {
   id            String          @id @default(cuid())
   businessId    String
   name          String
-  type          TransactionType
+  accountCode   String          // GL Account number (e.g., "1000", "4000") - now required
+  accountType   AccountType     // Primary account type
   description   String?
   color         String?
   icon          String?
   isDefault     Boolean         @default(false)
+  isActive      Boolean         @default(true)
   parentId      String?
+  sortOrder     Int?            // For ordering accounts in reports
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   creatorId     String
@@ -229,6 +232,10 @@ model Category {
   parent        Category?       @relation("SubCategories", fields: [parentId], references: [id])
   subCategories Category[]      @relation("SubCategories")
   transactions  Transaction[]
+
+  @@unique([businessId, accountCode])
+  @@index([businessId, accountType])
+  @@index([businessId, sortOrder])
 }
 
 model Transaction {
@@ -421,6 +428,14 @@ enum TransactionType {
   INCOME
   EXPENSE
   TRANSFER
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
 }
 
 enum DocumentType {
