@@ -1,5 +1,8 @@
 import { PrismaClient, Prisma } from "@/generated/prisma";
 
+// Export everything from Prisma for types
+export * from "@/generated/prisma";
+
 // Simple function to create a new PrismaClient instance
 const prismaClientSingleton = () => {
   return new PrismaClient({
@@ -20,7 +23,7 @@ if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = db;
 }
 
-// Export Prisma namespace for types
+// Re-export Prisma namespace (already exported via export *)
 export { Prisma };
 
 export default db;

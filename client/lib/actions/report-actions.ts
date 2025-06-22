@@ -3,152 +3,28 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
-
-// Validation schemas
-const reportRequestSchema = z.object({
-  type: z.enum([
-    "PROFIT_LOSS",
-    "EXPENSE_CATEGORIES",
-    "CASH_FLOW",
-    "BALANCE_SHEET",
-  ]),
-  startDate: z.string().transform((str) => new Date(str)),
-  endDate: z.string().transform((str) => new Date(str)),
-  period: z.enum(["custom", "month", "quarter", "year"]).optional(),
-});
-
-export interface ReportRequest {
-  type: "PROFIT_LOSS" | "EXPENSE_CATEGORIES" | "CASH_FLOW" | "BALANCE_SHEET";
-  startDate: string;
-  endDate: string;
-  period?: "custom" | "month" | "quarter" | "year";
-}
-
-export interface ReconciliationBreakdown {
-  totalAmount: number;
-  matchedAmount: number;
-  unmatchedAmount: number;
-  pendingReviewAmount: number;
-  matchedPercentage: number;
-  unmatchedCount: number;
-  matchedCount: number;
-  pendingReviewCount: number;
-}
-
-export interface CategoryWithReconciliation {
-  category: string;
-  amount: number;
-  percentage: number;
-  reconciliation: ReconciliationBreakdown;
-}
-
-export interface ProfitLossData {
-  period: string;
-  totalIncome: number;
-  totalExpenses: number;
-  netIncome: number;
-  incomeByCategory: CategoryWithReconciliation[];
-  expensesByCategory: CategoryWithReconciliation[];
-  // Overall reconciliation summary
-  incomeReconciliation: ReconciliationBreakdown;
-  expenseReconciliation: ReconciliationBreakdown;
-  overallReconciliation: ReconciliationBreakdown;
-}
-
-export interface ExpenseCategoriesData {
-  period: string;
-  totalExpenses: number;
-  categories: Array<{
-    category: string;
-    amount: number;
-    percentage: number;
-    transactionCount: number;
-    reconciliation: ReconciliationBreakdown;
-  }>;
-  overallReconciliation: ReconciliationBreakdown;
-}
-
-export interface ReconciliationSummaryReport {
-  period: string;
-  overallSummary: ReconciliationBreakdown;
-  unmatchedTransactions: Array<{
-    id: string;
-    date: Date;
-    amount: number;
-    description: string | null;
-    category: string | null;
-    type: "INCOME" | "EXPENSE";
-    bankAccount: string | null;
-  }>;
-  pendingReviewTransactions: Array<{
-    id: string;
-    date: Date;
-    amount: number;
-    description: string | null;
-    category: string | null;
-    type: "INCOME" | "EXPENSE";
-    bankAccount: string | null;
-    confidence: number | null;
-  }>;
-  complianceByCategory: Array<{
-    category: string;
-    type: "INCOME" | "EXPENSE";
-    reconciliation: ReconciliationBreakdown;
-  }>;
-  riskAssessment: {
-    highRiskAmount: number;
-    mediumRiskAmount: number;
-    lowRiskAmount: number;
-    riskLevel: "LOW" | "MEDIUM" | "HIGH";
-  };
-}
-
-export interface BalanceSheetItem {
-  name: string;
-  amount: number;
-  reconciliation: ReconciliationBreakdown;
-  subItems?: BalanceSheetItem[];
-}
-
-export interface BalanceSheetData {
-  period: string;
-  asOfDate: string;
-  assets: {
-    currentAssets: BalanceSheetItem[];
-    totalCurrentAssets: number;
-    nonCurrentAssets: BalanceSheetItem[];
-    totalNonCurrentAssets: number;
-    totalAssets: number;
-    assetsReconciliation: ReconciliationBreakdown;
-  };
-  liabilities: {
-    currentLiabilities: BalanceSheetItem[];
-    totalCurrentLiabilities: number;
-    nonCurrentLiabilities: BalanceSheetItem[];
-    totalNonCurrentLiabilities: number;
-    totalLiabilities: number;
-    liabilitiesReconciliation: ReconciliationBreakdown;
-  };
-  equity: {
-    equityItems: BalanceSheetItem[];
-    totalEquity: number;
-    equityReconciliation: ReconciliationBreakdown;
-  };
-  overallReconciliation: ReconciliationBreakdown;
-  balanceCheck: {
-    assetsTotal: number;
-    liabilitiesAndEquityTotal: number;
-    isBalanced: boolean;
-    difference: number;
-  };
-}
+import { saveGeneratedReport } from "./report-persistence-actions";
+import {
+  reportRequestSchema,
+  type ReportRequest,
+  type ReconciliationBreakdown,
+  type CategoryWithReconciliation,
+  type ProfitLossData,
+  type ExpenseCategoriesData,
+  type ReconciliationSummaryReport,
+  type BalanceSheetItem,
+  type BalanceSheetData,
+  type CashFlowItem,
+  type CashFlowData,
+} from "@/lib/types/reports";
 
 /**
  * Generate Profit & Loss Report with Reconciliation Status
  */
 export async function generateProfitLossReport(
-  data: ReportRequest
-): Promise<{ success: boolean; data?: ProfitLossData; error?: string }> {
+  data: ReportRequest,
+  saveReport: boolean = false
+): Promise<{ success: boolean; data?: ProfitLossData; reportId?: string; error?: string }> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -230,7 +106,30 @@ export async function generateProfitLossReport(
       overallReconciliation,
     };
 
-    return { success: true, data: reportData };
+    // Save report if requested
+    let reportId: string | undefined;
+    if (saveReport) {
+      const saveResult = await saveGeneratedReport({
+        type: "PROFIT_LOSS",
+        title: `Profit & Loss Report - ${period}`,
+        data: reportData,
+        parameters: {
+          type: data.type,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          period: data.period,
+        },
+        period: data.period || "custom",
+        startDate: validatedData.startDate,
+        endDate: validatedData.endDate,
+      });
+
+      if (saveResult.success) {
+        reportId = saveResult.reportId;
+      }
+    }
+
+    return { success: true, data: reportData, reportId };
   } catch (error) {
     console.error("Error generating P&L report:", error);
     if (error instanceof z.ZodError) {
@@ -244,8 +143,9 @@ export async function generateProfitLossReport(
  * Generate Expense Categories Report with Reconciliation Status
  */
 export async function generateExpenseCategoriesReport(
-  data: ReportRequest
-): Promise<{ success: boolean; data?: ExpenseCategoriesData; error?: string }> {
+  data: ReportRequest,
+  saveReport: boolean = false
+): Promise<{ success: boolean; data?: ExpenseCategoriesData; reportId?: string; error?: string }> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -330,7 +230,30 @@ export async function generateExpenseCategoriesReport(
       overallReconciliation,
     };
 
-    return { success: true, data: reportData };
+    // Save report if requested
+    let reportId: string | undefined;
+    if (saveReport) {
+      const saveResult = await saveGeneratedReport({
+        type: "EXPENSE_CATEGORIES",
+        title: `Expense Categories Report - ${period}`,
+        data: reportData,
+        parameters: {
+          type: data.type,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          period: data.period,
+        },
+        period: data.period || "custom",
+        startDate: validatedData.startDate,
+        endDate: validatedData.endDate,
+      });
+
+      if (saveResult.success) {
+        reportId = saveResult.reportId;
+      }
+    }
+
+    return { success: true, data: reportData, reportId };
   } catch (error) {
     console.error("Error generating expense categories report:", error);
     if (error instanceof z.ZodError) {
@@ -344,10 +267,12 @@ export async function generateExpenseCategoriesReport(
  * Generate Reconciliation Summary Report
  */
 export async function generateReconciliationSummaryReport(
-  data: ReportRequest
+  data: ReportRequest,
+  saveReport: boolean = false
 ): Promise<{
   success: boolean;
   data?: ReconciliationSummaryReport;
+  reportId?: string;
   error?: string;
 }> {
   try {
@@ -459,7 +384,30 @@ export async function generateReconciliationSummaryReport(
       riskAssessment,
     };
 
-    return { success: true, data: reportData };
+    // Save report if requested
+    let reportId: string | undefined;
+    if (saveReport) {
+      const saveResult = await saveGeneratedReport({
+        type: "RECONCILIATION_SUMMARY",
+        title: `Reconciliation Summary - ${period}`,
+        data: reportData,
+        parameters: {
+          type: data.type,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          period: data.period,
+        },
+        period: data.period || "custom",
+        startDate: validatedData.startDate,
+        endDate: validatedData.endDate,
+      });
+
+      if (saveResult.success) {
+        reportId = saveResult.reportId;
+      }
+    }
+
+    return { success: true, data: reportData, reportId };
   } catch (error) {
     console.error("Error generating reconciliation summary report:", error);
     if (error instanceof z.ZodError) {
@@ -610,8 +558,9 @@ function calculateReconciliationBreakdown(
  * Generate Balance Sheet Report
  */
 export async function generateBalanceSheetReport(
-  data: ReportRequest
-): Promise<{ success: boolean; data?: BalanceSheetData; error?: string }> {
+  data: ReportRequest,
+  saveReport: boolean = false
+): Promise<{ success: boolean; data?: BalanceSheetData; reportId?: string; error?: string }> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -930,7 +879,30 @@ export async function generateBalanceSheetReport(
       },
     };
 
-    return { success: true, data: reportData };
+    // Save report if requested
+    let reportId: string | undefined;
+    if (saveReport) {
+      const saveResult = await saveGeneratedReport({
+        type: "BALANCE_SHEET",
+        title: `Balance Sheet - ${asOfDate}`,
+        data: reportData,
+        parameters: {
+          type: data.type,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          period: data.period,
+        },
+        period: data.period || "custom",
+        startDate: validatedData.startDate,
+        endDate: validatedData.endDate,
+      });
+
+      if (saveResult.success) {
+        reportId = saveResult.reportId;
+      }
+    }
+
+    return { success: true, data: reportData, reportId };
   } catch (error) {
     console.error("Error generating balance sheet report:", error);
     if (error instanceof z.ZodError) {
@@ -938,4 +910,260 @@ export async function generateBalanceSheetReport(
     }
     return { success: false, error: "Failed to generate balance sheet report" };
   }
+}
+
+/**
+ * Generate Cash Flow Report
+ */
+export async function generateCashFlowReport(
+  data: ReportRequest,
+  saveReport: boolean = false
+): Promise<{ success: boolean; data?: CashFlowData; reportId?: string; error?: string }> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    const validatedData = reportRequestSchema.parse(data);
+
+    // Get user's business
+    const business = await db.business.findFirst({
+      where: { ownerId: session.user.id },
+    });
+
+    if (!business) {
+      return { success: false, error: "No business found" };
+    }
+
+    // Get bank account balances at start and end of period
+    const bankAccounts = await db.bankAccount.findMany({
+      where: { businessId: business.id },
+    });
+
+    // Calculate beginning and ending cash
+    const beginningCash = bankAccounts.reduce(
+      (sum, account) => sum + (account.balance || 0),
+      0
+    );
+
+    // Get all transactions for the period
+    const transactions = await db.transaction.findMany({
+      where: {
+        businessId: business.id,
+        date: {
+          gte: validatedData.startDate,
+          lte: validatedData.endDate,
+        },
+      },
+      include: {
+        category: true,
+        reconciliation: true,
+      },
+    });
+
+    // Categorize transactions for cash flow statement
+    const operatingTransactions: typeof transactions = [];
+    const investingTransactions: typeof transactions = [];
+    const financingTransactions: typeof transactions = [];
+
+    transactions.forEach((transaction) => {
+      const categoryName = transaction.category?.name || "Uncategorized";
+      
+      // Simple categorization based on category names (can be enhanced)
+      if (
+        categoryName.toLowerCase().includes("equipment") ||
+        categoryName.toLowerCase().includes("property") ||
+        categoryName.toLowerCase().includes("investment")
+      ) {
+        investingTransactions.push(transaction);
+      } else if (
+        categoryName.toLowerCase().includes("loan") ||
+        categoryName.toLowerCase().includes("equity") ||
+        categoryName.toLowerCase().includes("dividend")
+      ) {
+        financingTransactions.push(transaction);
+      } else {
+        // Most transactions are operating activities
+        operatingTransactions.push(transaction);
+      }
+    });
+
+    // Calculate cash flows by activity
+    const operatingActivities = calculateCashFlowSection(
+      "Operating Activities",
+      operatingTransactions
+    );
+    const investingActivities = calculateCashFlowSection(
+      "Investing Activities",
+      investingTransactions
+    );
+    const financingActivities = calculateCashFlowSection(
+      "Financing Activities",
+      financingTransactions
+    );
+
+    // Calculate net cash change
+    const netCashChange =
+      (operatingActivities.netCashFromOperating || 0) +
+      (investingActivities.netCashFromInvesting || 0) +
+      (financingActivities.netCashFromFinancing || 0);
+
+    const endingCash = beginningCash + netCashChange;
+
+    // Calculate overall reconciliation
+    const overallReconciliation = calculateReconciliationBreakdown(transactions);
+
+    const period = `${validatedData.startDate.toLocaleDateString()} - ${validatedData.endDate.toLocaleDateString()}`;
+
+    const reportData: CashFlowData = {
+      period,
+      startDate: validatedData.startDate.toLocaleDateString(),
+      endDate: validatedData.endDate.toLocaleDateString(),
+      beginningCash,
+      endingCash,
+      netCashChange,
+      operatingActivities: {
+        items: operatingActivities.items,
+        netCashFromOperating: operatingActivities.netCashFromOperating || 0,
+        reconciliation: operatingActivities.reconciliation,
+      },
+      investingActivities: {
+        items: investingActivities.items,
+        netCashFromInvesting: investingActivities.netCashFromInvesting || 0,
+        reconciliation: investingActivities.reconciliation,
+      },
+      financingActivities: {
+        items: financingActivities.items,
+        netCashFromFinancing: financingActivities.netCashFromFinancing || 0,
+        reconciliation: financingActivities.reconciliation,
+      },
+      overallReconciliation,
+    };
+
+    // Save report if requested
+    let reportId: string | undefined;
+    if (saveReport) {
+      const saveResult = await saveGeneratedReport({
+        type: "CASH_FLOW",
+        title: `Cash Flow Statement - ${period}`,
+        data: reportData,
+        parameters: {
+          type: data.type,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          period: data.period,
+        },
+        period: data.period || "custom",
+        startDate: validatedData.startDate,
+        endDate: validatedData.endDate,
+      });
+
+      if (saveResult.success) {
+        reportId = saveResult.reportId;
+      }
+    }
+
+    return { success: true, data: reportData, reportId };
+  } catch (error) {
+    console.error("Error generating cash flow report:", error);
+    if (error instanceof z.ZodError) {
+      return { success: false, error: "Invalid request data" };
+    }
+    return { success: false, error: "Failed to generate cash flow report" };
+  }
+}
+
+/**
+ * Helper function to calculate cash flow for a section
+ */
+function calculateCashFlowSection(
+  sectionName: string,
+  transactions: Array<{
+    id: string;
+    amount: number;
+    type: string;
+    category?: { name: string } | null;
+    reconciliation?: {
+      status: string;
+    } | null;
+  }>
+): {
+  items: CashFlowItem[];
+  netCashFromOperating?: number;
+  netCashFromInvesting?: number;
+  netCashFromFinancing?: number;
+  reconciliation: ReconciliationBreakdown;
+} {
+  // Group transactions by category
+  const categoryMap = new Map<
+    string,
+    {
+      transactions: typeof transactions;
+      totalCashIn: number;
+      totalCashOut: number;
+    }
+  >();
+
+  transactions.forEach((transaction) => {
+    const categoryName = transaction.category?.name || "Uncategorized";
+    const existing = categoryMap.get(categoryName) || {
+      transactions: [],
+      totalCashIn: 0,
+      totalCashOut: 0,
+    };
+
+    existing.transactions.push(transaction);
+    if (transaction.type === "INCOME") {
+      existing.totalCashIn += Math.abs(transaction.amount);
+    } else {
+      existing.totalCashOut += Math.abs(transaction.amount);
+    }
+
+    categoryMap.set(categoryName, existing);
+  });
+
+  // Create cash flow items
+  const items: CashFlowItem[] = [];
+  let totalCashFlow = 0;
+
+  categoryMap.forEach((data, category) => {
+    const netAmount = data.totalCashIn - data.totalCashOut;
+    if (netAmount !== 0) {
+      items.push({
+        description: category,
+        amount: netAmount,
+        reconciliation: calculateReconciliationBreakdown(data.transactions),
+      });
+      totalCashFlow += netAmount;
+    }
+  });
+
+  // Sort items by absolute amount (largest first)
+  items.sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+
+  // Calculate section reconciliation
+  const reconciliation = calculateReconciliationBreakdown(transactions);
+
+  // Return with appropriate property name
+  const result: {
+    items: CashFlowItem[];
+    netCashFromOperating?: number;
+    netCashFromInvesting?: number;
+    netCashFromFinancing?: number;
+    reconciliation: ReconciliationBreakdown;
+  } = {
+    items,
+    reconciliation,
+  };
+
+  if (sectionName === "Operating Activities") {
+    result.netCashFromOperating = totalCashFlow;
+  } else if (sectionName === "Investing Activities") {
+    result.netCashFromInvesting = totalCashFlow;
+  } else if (sectionName === "Financing Activities") {
+    result.netCashFromFinancing = totalCashFlow;
+  }
+
+  return result;
 }

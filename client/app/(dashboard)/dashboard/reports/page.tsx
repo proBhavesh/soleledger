@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -37,12 +37,18 @@ import {
   generateExpenseCategoriesReport,
   generateReconciliationSummaryReport,
   generateBalanceSheetReport,
-  type ProfitLossData,
-  type ExpenseCategoriesData,
-  type ReconciliationBreakdown,
-  type ReconciliationSummaryReport,
-  type BalanceSheetData,
+  generateCashFlowReport,
 } from "@/lib/actions/report-actions";
+import type {
+  ProfitLossData,
+  ExpenseCategoriesData,
+  ReconciliationBreakdown,
+  ReconciliationSummaryReport,
+  BalanceSheetData,
+  CashFlowData,
+} from "@/lib/types/reports";
+import { ReportHistory } from "@/components/dashboard/reports/report-history";
+import { getLatestReports } from "@/lib/actions/report-persistence-actions";
 import {
   subDays,
   startOfMonth,
@@ -64,6 +70,10 @@ export default function ReportsPage() {
     useState<ReconciliationSummaryReport | null>(null);
   const [balanceSheetData, setBalanceSheetData] =
     useState<BalanceSheetData | null>(null);
+  const [cashFlowData, setCashFlowData] = useState<CashFlowData | null>(null);
+  const [activeTab, setActiveTab] = useState("profit-loss");
+  const [isLoadingLatest, setIsLoadingLatest] = useState(true);
+  const [lastLoadedDate, setLastLoadedDate] = useState<Date | null>(null);
 
   const getPeriodDates = (period: string) => {
     const now = new Date();
@@ -89,60 +99,87 @@ export default function ReportsPage() {
     }
   };
 
-  const generateReports = async () => {
+  const generateReports = async (saveReports: boolean = false) => {
     try {
       setIsGenerating(true);
       const { start, end } = getPeriodDates(selectedPeriod);
 
       // Generate P&L Report
-      const plResult = await generateProfitLossReport({
-        type: "PROFIT_LOSS" as const,
-        startDate: start.toISOString(),
-        endDate: end.toISOString(),
-        period: selectedPeriod as "month" | "quarter" | "year" | "custom",
-      });
+      const plResult = await generateProfitLossReport(
+        {
+          type: "PROFIT_LOSS" as const,
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
+          period: selectedPeriod as "month" | "quarter" | "year" | "custom",
+        },
+        saveReports
+      );
 
       if (plResult.success && plResult.data) {
         setProfitLossData(plResult.data);
       }
 
       // Generate Expense Categories Report
-      const expenseResult = await generateExpenseCategoriesReport({
-        type: "EXPENSE_CATEGORIES" as const,
-        startDate: start.toISOString(),
-        endDate: end.toISOString(),
-        period: selectedPeriod as "month" | "quarter" | "year" | "custom",
-      });
+      const expenseResult = await generateExpenseCategoriesReport(
+        {
+          type: "EXPENSE_CATEGORIES" as const,
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
+          period: selectedPeriod as "month" | "quarter" | "year" | "custom",
+        },
+        saveReports
+      );
 
       if (expenseResult.success && expenseResult.data) {
         setExpenseData(expenseResult.data);
       }
 
       // Generate Reconciliation Summary Report
-      const reconciliationResult = await generateReconciliationSummaryReport({
-        type: "CASH_FLOW" as const, // Using CASH_FLOW as placeholder
-        startDate: start.toISOString(),
-        endDate: end.toISOString(),
-        period: selectedPeriod as "month" | "quarter" | "year" | "custom",
-      });
+      const reconciliationResult = await generateReconciliationSummaryReport(
+        {
+          type: "CASH_FLOW" as const, // Using CASH_FLOW as placeholder
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
+          period: selectedPeriod as "month" | "quarter" | "year" | "custom",
+        },
+        saveReports
+      );
 
       if (reconciliationResult.success && reconciliationResult.data) {
         setReconciliationData(reconciliationResult.data);
       }
 
       // Generate Balance Sheet Report
-      const balanceSheetResult = await generateBalanceSheetReport({
-        type: "BALANCE_SHEET" as const,
-        startDate: start.toISOString(),
-        endDate: end.toISOString(),
-        period: selectedPeriod as "month" | "quarter" | "year" | "custom",
-      });
+      const balanceSheetResult = await generateBalanceSheetReport(
+        {
+          type: "BALANCE_SHEET" as const,
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
+          period: selectedPeriod as "month" | "quarter" | "year" | "custom",
+        },
+        saveReports
+      );
+
+      // Generate Cash Flow Report
+      const cashFlowResult = await generateCashFlowReport(
+        {
+          type: "CASH_FLOW" as const,
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
+          period: selectedPeriod as "month" | "quarter" | "year" | "custom",
+        },
+        saveReports
+      );
 
       if (balanceSheetResult.success && balanceSheetResult.data) {
         setBalanceSheetData(balanceSheetResult.data);
       }
 
-      toast.success("Reports generated successfully");
+      if (cashFlowResult.success && cashFlowResult.data) {
+        setCashFlowData(cashFlowResult.data);
+      }
+
+      toast.success("Reports generated and saved successfully");
     } catch {
       toast.error("Failed to generate reports");
     } finally {
@@ -215,6 +252,41 @@ export default function ReportsPage() {
       year: "numeric",
     }).format(new Date(date));
   };
+
+  // Load latest reports on mount
+  useEffect(() => {
+    const loadLatestReports = async () => {
+      try {
+        setIsLoadingLatest(true);
+        const result = await getLatestReports();
+        
+        if (result.success && result.reports) {
+          if (result.reports.profitLoss) {
+            setProfitLossData(result.reports.profitLoss.data as ProfitLossData);
+            setLastLoadedDate(result.reports.profitLoss.generatedAt);
+          }
+          if (result.reports.balanceSheet) {
+            setBalanceSheetData(result.reports.balanceSheet.data as BalanceSheetData);
+          }
+          if (result.reports.cashFlow) {
+            setCashFlowData(result.reports.cashFlow.data as CashFlowData);
+          }
+          if (result.reports.expenseCategories) {
+            setExpenseData(result.reports.expenseCategories.data as ExpenseCategoriesData);
+          }
+          if (result.reports.reconciliationSummary) {
+            setReconciliationData(result.reports.reconciliationSummary.data as ReconciliationSummaryReport);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load latest reports:", error);
+      } finally {
+        setIsLoadingLatest(false);
+      }
+    };
+
+    loadLatestReports();
+  }, []);
 
   const ReconciliationSummaryCard = ({
     title,
@@ -291,7 +363,7 @@ export default function ReportsPage() {
               <SelectItem value="year">This Year</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={generateReports} disabled={isGenerating}>
+          <Button onClick={() => generateReports(true)} disabled={isGenerating}>
             {isGenerating ? (
               <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
             ) : (
@@ -302,8 +374,36 @@ export default function ReportsPage() {
         </div>
       </div>
 
+      {/* Latest Report Info */}
+      {lastLoadedDate && !isLoadingLatest && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-start gap-3">
+              <FileText className="h-5 w-5 text-blue-600 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-blue-900 mb-1">
+                  Showing Last Generated Reports
+                </h4>
+                <p className="text-sm text-blue-700">
+                  Generated on {formatDate(lastLoadedDate)}. Click &quot;Generate Reports&quot; to refresh with latest data.
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => generateReports(true)}
+              disabled={isGenerating}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh Data
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Enhanced Features Info */}
-      {profitLossData && (
+      {profitLossData && !lastLoadedDate && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <div className="flex items-start gap-3">
             <FileText className="h-5 w-5 text-blue-600 mt-0.5" />
@@ -326,7 +426,7 @@ export default function ReportsPage() {
       )}
 
       {/* Quick Stats */}
-      {profitLossData && (
+      {profitLossData && !isLoadingLatest && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -431,7 +531,7 @@ export default function ReportsPage() {
       )}
 
       {/* Reconciliation Summary Cards */}
-      {profitLossData && (
+      {profitLossData && !isLoadingLatest && (
         <div className="grid gap-4 md:grid-cols-3">
           <ReconciliationSummaryCard
             title="Income Documentation"
@@ -451,17 +551,29 @@ export default function ReportsPage() {
         </div>
       )}
 
-      <Tabs defaultValue="profit-loss" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="profit-loss">Profit & Loss</TabsTrigger>
           <TabsTrigger value="balance-sheet">Balance Sheet</TabsTrigger>
           <TabsTrigger value="expenses">Expense Categories</TabsTrigger>
           <TabsTrigger value="cash-flow">Cash Flow</TabsTrigger>
           <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
+          <TabsTrigger value="history">Report History</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profit-loss" className="space-y-4">
-          {profitLossData ? (
+          {isLoadingLatest ? (
+            <Card>
+              <CardContent className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <RefreshCw className="h-8 w-8 text-muted-foreground mx-auto mb-2 animate-spin" />
+                  <p className="text-muted-foreground">
+                    Loading last generated report...
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : profitLossData ? (
             <div className="grid gap-4 md:grid-cols-2">
               <Card>
                 <CardHeader>
@@ -614,7 +726,7 @@ export default function ReportsPage() {
                     Generate reports to view P&L data
                   </p>
                   <Button
-                    onClick={generateReports}
+                    onClick={() => generateReports(true)}
                     className="mt-2"
                     disabled={isGenerating}
                   >
@@ -627,7 +739,18 @@ export default function ReportsPage() {
         </TabsContent>
 
         <TabsContent value="balance-sheet" className="space-y-4">
-          {balanceSheetData ? (
+          {isLoadingLatest ? (
+            <Card>
+              <CardContent className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <RefreshCw className="h-8 w-8 text-muted-foreground mx-auto mb-2 animate-spin" />
+                  <p className="text-muted-foreground">
+                    Loading last generated report...
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : balanceSheetData ? (
             <div className="space-y-6">
               {/* Balance Sheet Header */}
               <Card>
@@ -1051,7 +1174,7 @@ export default function ReportsPage() {
                     Generate reports to view Balance Sheet
                   </p>
                   <Button
-                    onClick={generateReports}
+                    onClick={() => generateReports(true)}
                     className="mt-2"
                     disabled={isGenerating}
                   >
@@ -1064,7 +1187,18 @@ export default function ReportsPage() {
         </TabsContent>
 
         <TabsContent value="expenses" className="space-y-4">
-          {expenseData ? (
+          {isLoadingLatest ? (
+            <Card>
+              <CardContent className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <RefreshCw className="h-8 w-8 text-muted-foreground mx-auto mb-2 animate-spin" />
+                  <p className="text-muted-foreground">
+                    Loading last generated report...
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : expenseData ? (
             <Card>
               <CardHeader>
                 <CardTitle>Expense Categories Analysis</CardTitle>
@@ -1188,7 +1322,7 @@ export default function ReportsPage() {
                     Generate reports to view expense analysis
                   </p>
                   <Button
-                    onClick={generateReports}
+                    onClick={() => generateReports(true)}
                     className="mt-2"
                     disabled={isGenerating}
                   >
@@ -1201,30 +1335,233 @@ export default function ReportsPage() {
         </TabsContent>
 
         <TabsContent value="cash-flow" className="space-y-4">
-          <Card>
-            <CardContent className="flex items-center justify-center py-8">
-              <div className="text-center">
-                <TrendingUp className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-muted-foreground">Cash Flow Statement</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Track cash inflows and outflows from operating, investing, and
-                  financing activities
-                </p>
-                <Button
-                  onClick={generateReports}
-                  className="mt-4"
-                  disabled={isGenerating}
-                  variant="outline"
-                >
-                  Generate Cash Flow Report
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          {isLoadingLatest ? (
+            <Card>
+              <CardContent className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <RefreshCw className="h-8 w-8 text-muted-foreground mx-auto mb-2 animate-spin" />
+                  <p className="text-muted-foreground">
+                    Loading last generated report...
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : cashFlowData ? (
+            <div className="space-y-6">
+              {/* Cash Flow Summary */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Cash Flow Statement</CardTitle>
+                  <CardDescription>
+                    {cashFlowData.period} • Cash movements from operating, investing, and financing activities
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-4">
+                    <div className="text-center p-4 border rounded-lg">
+                      <div className="text-sm text-muted-foreground mb-1">Beginning Cash</div>
+                      <div className="text-xl font-bold">
+                        {formatCurrency(cashFlowData.beginningCash)}
+                      </div>
+                    </div>
+                    <div className="text-center p-4 border rounded-lg">
+                      <div className="text-sm text-muted-foreground mb-1">Net Change</div>
+                      <div className={`text-xl font-bold ${
+                        cashFlowData.netCashChange >= 0 ? "text-green-600" : "text-red-600"
+                      }`}>
+                        {cashFlowData.netCashChange >= 0 ? "+" : ""}
+                        {formatCurrency(cashFlowData.netCashChange)}
+                      </div>
+                    </div>
+                    <div className="text-center p-4 border rounded-lg">
+                      <div className="text-sm text-muted-foreground mb-1">Ending Cash</div>
+                      <div className="text-xl font-bold">
+                        {formatCurrency(cashFlowData.endingCash)}
+                      </div>
+                    </div>
+                    <div className="text-center p-4 border rounded-lg">
+                      <div className="text-sm text-muted-foreground mb-1">Documentation</div>
+                      <div className="text-xl font-bold">
+                        {cashFlowData.overallReconciliation.matchedPercentage.toFixed(1)}%
+                      </div>
+                      {getReconciliationBadge(
+                        cashFlowData.overallReconciliation.matchedPercentage
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Operating Activities */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    Operating Activities
+                    <span className={`text-lg font-bold ${
+                      cashFlowData.operatingActivities.netCashFromOperating >= 0
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}>
+                      {formatCurrency(cashFlowData.operatingActivities.netCashFromOperating)}
+                    </span>
+                  </CardTitle>
+                  <CardDescription>
+                    Cash flows from primary business operations
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {cashFlowData.operatingActivities.items.map((item, index) => (
+                      <div key={index} className="p-3 border rounded-lg">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="font-medium">{item.description}</span>
+                          <span className={`font-bold ${
+                            item.amount >= 0 ? "text-green-600" : "text-red-600"
+                          }`}>
+                            {item.amount >= 0 ? "+" : ""}
+                            {formatCurrency(item.amount)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">
+                            Documentation: {item.reconciliation.matchedPercentage.toFixed(1)}%
+                          </span>
+                          {getReconciliationBadge(item.reconciliation.matchedPercentage)}
+                        </div>
+                        <Progress value={item.reconciliation.matchedPercentage} className="h-1 mt-2" />
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Investing Activities */}
+              {cashFlowData.investingActivities.items.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      Investing Activities
+                      <span className={`text-lg font-bold ${
+                        cashFlowData.investingActivities.netCashFromInvesting >= 0
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}>
+                        {formatCurrency(cashFlowData.investingActivities.netCashFromInvesting)}
+                      </span>
+                    </CardTitle>
+                    <CardDescription>
+                      Cash flows from investment in assets and securities
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {cashFlowData.investingActivities.items.map((item, index) => (
+                        <div key={index} className="p-3 border rounded-lg">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="font-medium">{item.description}</span>
+                            <span className={`font-bold ${
+                              item.amount >= 0 ? "text-green-600" : "text-red-600"
+                            }`}>
+                              {item.amount >= 0 ? "+" : ""}
+                              {formatCurrency(item.amount)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">
+                              Documentation: {item.reconciliation.matchedPercentage.toFixed(1)}%
+                            </span>
+                            {getReconciliationBadge(item.reconciliation.matchedPercentage)}
+                          </div>
+                          <Progress value={item.reconciliation.matchedPercentage} className="h-1 mt-2" />
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Financing Activities */}
+              {cashFlowData.financingActivities.items.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      Financing Activities
+                      <span className={`text-lg font-bold ${
+                        cashFlowData.financingActivities.netCashFromFinancing >= 0
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}>
+                        {formatCurrency(cashFlowData.financingActivities.netCashFromFinancing)}
+                      </span>
+                    </CardTitle>
+                    <CardDescription>
+                      Cash flows from loans, equity, and dividends
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {cashFlowData.financingActivities.items.map((item, index) => (
+                        <div key={index} className="p-3 border rounded-lg">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="font-medium">{item.description}</span>
+                            <span className={`font-bold ${
+                              item.amount >= 0 ? "text-green-600" : "text-red-600"
+                            }`}>
+                              {item.amount >= 0 ? "+" : ""}
+                              {formatCurrency(item.amount)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">
+                              Documentation: {item.reconciliation.matchedPercentage.toFixed(1)}%
+                            </span>
+                            {getReconciliationBadge(item.reconciliation.matchedPercentage)}
+                          </div>
+                          <Progress value={item.reconciliation.matchedPercentage} className="h-1 mt-2" />
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <TrendingUp className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-muted-foreground">Cash Flow Statement</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Track cash inflows and outflows from operating, investing, and
+                    financing activities
+                  </p>
+                  <Button
+                    onClick={() => generateReports(true)}
+                    className="mt-4"
+                    disabled={isGenerating}
+                    variant="outline"
+                  >
+                    Generate Cash Flow Report
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="reconciliation" className="space-y-4">
-          {reconciliationData ? (
+          {isLoadingLatest ? (
+            <Card>
+              <CardContent className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <RefreshCw className="h-8 w-8 text-muted-foreground mx-auto mb-2 animate-spin" />
+                  <p className="text-muted-foreground">
+                    Loading last generated report...
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : reconciliationData ? (
             <div className="space-y-6">
               {/* Risk Assessment Card */}
               <Card>
@@ -1579,7 +1916,7 @@ export default function ReportsPage() {
                     Generate reports to view reconciliation analysis
                   </p>
                   <Button
-                    onClick={generateReports}
+                    onClick={() => generateReports(true)}
                     className="mt-2"
                     disabled={isGenerating}
                   >
@@ -1589,6 +1926,10 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-4">
+          <ReportHistory />
         </TabsContent>
       </Tabs>
     </div>
