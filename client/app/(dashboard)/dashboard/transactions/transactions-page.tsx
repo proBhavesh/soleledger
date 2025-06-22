@@ -3,26 +3,20 @@
 import { useState, use, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TransactionsHeader } from "@/components/dashboard/transactions/transactions-header";
 import { TransactionList } from "@/components/dashboard/transactions/transaction-list";
 import { TransactionInsights } from "@/components/dashboard/transactions/transaction-insights";
 import { Pagination } from "@/components/dashboard/transactions/pagination";
+import { TransactionFilters, TransactionFilterValues } from "@/components/dashboard/transactions/transaction-filters";
 import { Transaction } from "@/lib/types/dashboard";
 import { getEnrichedTransactions } from "@/lib/actions/plaid";
 import { toast } from "sonner";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateRange } from "react-day-picker";
 import { format } from "date-fns";
-
-interface TransactionsPageProps {
-  initialTransactions: Transaction[];
-  totalTransactions: number;
-  currentPage: number;
-  pageSize: number;
-  searchParams: Record<string, string | undefined>;
-  error: string | null;
-}
+import type { TransactionsPageProps } from "@/lib/types/transactions";
 
 export function TransactionsPage({
   initialTransactions,
@@ -31,6 +25,7 @@ export function TransactionsPage({
   pageSize,
   searchParams,
   error,
+  bankAccounts,
 }: TransactionsPageProps) {
   // Handle potential Promise from searchParams in Next.js 15
   const params =
@@ -45,6 +40,9 @@ export function TransactionsPage({
   const [isPaginationLoading, setIsPaginationLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(
     params.category || ""
+  );
+  const [selectedAccount, setSelectedAccount] = useState(
+    params.accountId || ""
   );
   const [searchTerm, setSearchTerm] = useState(params.search || "");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
@@ -99,6 +97,7 @@ export function TransactionsPage({
           ? format(dateRange.from, "yyyy-MM-dd")
           : undefined,
         dateTo: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined,
+        accountId: selectedAccount || undefined,
       };
 
       const result = await getEnrichedTransactions(
@@ -120,32 +119,6 @@ export function TransactionsPage({
     }
   };
 
-  // Handle search
-  const handleSearch = (term: string) => {
-    setSearchTerm(term);
-    updateUrlWithFilters({ search: term || null, page: 1 });
-  };
-
-  // Handle category filter
-  const handleCategoryFilter = (category: string) => {
-    setSelectedCategory(category);
-    updateUrlWithFilters({ category: category || null, page: 1 });
-  };
-
-  // Handle date range filter
-  const handleDateRangeChange = (range: DateRange | undefined) => {
-    setDateRange(range);
-
-    if (range?.from) {
-      updateUrlWithFilters({
-        from: format(range.from, "yyyy-MM-dd"),
-        to: range.to ? format(range.to, "yyyy-MM-dd") : null,
-        page: 1,
-      });
-    } else {
-      updateUrlWithFilters({ from: null, to: null, page: 1 });
-    }
-  };
 
   // Client-side data fetching for pagination
   const fetchPageData = async (page: number) => {
@@ -160,6 +133,7 @@ export function TransactionsPage({
           ? format(dateRange.from, "yyyy-MM-dd")
           : undefined,
         dateTo: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined,
+        accountId: selectedAccount || undefined,
       };
 
       const result = await getEnrichedTransactions(
@@ -196,6 +170,38 @@ export function TransactionsPage({
     new Set(transactions.map((t) => t.category))
   ).filter(Boolean);
 
+  // Handle all filters change from TransactionFilters component
+  const handleFiltersChange = (filters: TransactionFilterValues) => {
+    const urlFilters: Record<string, string | number | null> = {
+      page: 1,
+      search: filters.search || null,
+      category: filters.category || null,
+      accountId: filters.accountId || null,
+      from: filters.dateRange?.from ? format(filters.dateRange.from, "yyyy-MM-dd") : null,
+      to: filters.dateRange?.to ? format(filters.dateRange.to, "yyyy-MM-dd") : null,
+      type: filters.type || null,
+      min: filters.minAmount ? String(filters.minAmount) : null,
+      max: filters.maxAmount ? String(filters.maxAmount) : null,
+    };
+
+    // Update local state
+    setSearchTerm(filters.search || "");
+    setSelectedCategory(filters.category || "");
+    setSelectedAccount(filters.accountId || "");
+    
+    // Handle DateRange conversion properly
+    if (filters.dateRange && filters.dateRange.from) {
+      setDateRange({
+        from: filters.dateRange.from,
+        to: filters.dateRange.to
+      });
+    } else {
+      setDateRange(undefined);
+    }
+
+    updateUrlWithFilters(urlFilters);
+  };
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col">
@@ -221,19 +227,41 @@ export function TransactionsPage({
 
         <TabsContent value="transactions" className="mt-4">
           <div className="flex flex-col space-y-4">
-            <TransactionsHeader
-              title="Transaction History"
-              description="All your financial activities with enriched transaction data"
-              onSearch={handleSearch}
-              onRefresh={refreshTransactions}
-              onFilter={handleCategoryFilter}
-              onDateRangeChange={handleDateRangeChange}
-              categories={uniqueCategories}
-              selectedCategory={selectedCategory}
-              searchTerm={searchTerm}
-              isLoading={isLoading}
-              dateRange={dateRange}
-            />
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Transaction History</CardTitle>
+                    <CardDescription>
+                      All your financial activities with enriched transaction data
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={refreshTransactions}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                    )}
+                    Refresh
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <TransactionFilters
+                  categories={uniqueCategories}
+                  accounts={bankAccounts.map(account => ({
+                    id: account.id,
+                    name: `${account.name}${account.institution ? ` - ${account.institution}` : ""}`
+                  }))}
+                  onFiltersChange={handleFiltersChange}
+                />
+              </CardContent>
+            </Card>
 
             <TransactionList
               transactions={transactions}

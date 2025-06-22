@@ -21,7 +21,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Transaction } from "@/lib/types/dashboard";
+import type { TransactionListProps } from "@/lib/types/transactions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
 	FiEdit2,
@@ -35,11 +35,6 @@ import {
 	FiCoffee,
 	FiSliders,
 } from "react-icons/fi";
-
-interface TransactionListProps {
-	transactions: Transaction[];
-	isLoading: boolean;
-}
 
 // Loading skeleton rows for the transaction table
 function TransactionListLoading() {

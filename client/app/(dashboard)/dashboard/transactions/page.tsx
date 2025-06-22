@@ -1,18 +1,9 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getEnrichedTransactions } from "@/lib/actions/plaid";
+import { getBankAccounts } from "@/lib/actions/plaid/accounts";
 import { TransactionsPage } from "./transactions-page";
-
-interface PageProps {
-  searchParams: Promise<{
-    page?: string;
-    limit?: string;
-    category?: string;
-    search?: string;
-    from?: string;
-    to?: string;
-  }>;
-}
+import type { PageProps } from "@/lib/types/transactions";
 
 export default async function TransactionsPageWrapper({
   searchParams,
@@ -38,6 +29,7 @@ export default async function TransactionsPageWrapper({
     search: params.search,
     dateFrom: params.from,
     dateTo: params.to,
+    accountId: params.accountId,
   };
 
   // Fetch transactions with enriched data and filters
@@ -46,6 +38,9 @@ export default async function TransactionsPageWrapper({
     offset,
     filters
   );
+
+  // Fetch bank accounts for filtering
+  const bankAccountsResult = await getBankAccounts();
 
   return (
     <TransactionsPage
@@ -62,6 +57,9 @@ export default async function TransactionsPageWrapper({
         transactionsResult.success
           ? null
           : transactionsResult.error || "Unknown error"
+      }
+      bankAccounts={
+        bankAccountsResult.success ? bankAccountsResult.accounts || [] : []
       }
     />
   );

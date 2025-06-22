@@ -1,16 +1,9 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { db, Prisma } from "@/lib/db";
 import { Transaction } from "@/lib/types/dashboard";
-import { TransactionWhereInput } from "@/lib/types/database";
-
-interface TransactionFilters {
-  category?: string;
-  search?: string;
-  dateFrom?: string;
-  dateTo?: string;
-}
+import type { TransactionFilters, GetEnrichedTransactionsResponse } from "@/lib/types/transactions";
 
 /**
  * Ensures filter params are resolved if they're Promises
@@ -41,7 +34,7 @@ export async function getEnrichedTransactions(
   limit: number = 10,
   offset: number = 0,
   filters?: TransactionFilters
-) {
+): Promise<GetEnrichedTransactionsResponse> {
   const session = await auth();
   if (!session?.user?.id) {
     return { success: false, error: "Unauthorized" };
@@ -65,7 +58,7 @@ export async function getEnrichedTransactions(
     }
 
     // Build the where clause with filters
-    const where: TransactionWhereInput = { businessId: business.id };
+    const where: Prisma.TransactionWhereInput = { businessId: business.id };
 
     // Add category filter if provided
     if (resolvedFilters?.category) {
@@ -98,6 +91,11 @@ export async function getEnrichedTransactions(
       if (resolvedFilters.dateTo) {
         where.date.lte = new Date(resolvedFilters.dateTo);
       }
+    }
+
+    // Add bank account filter if provided
+    if (resolvedFilters?.accountId) {
+      where.bankAccountId = resolvedFilters.accountId;
     }
 
     // Get transactions with their categories and bank accounts
@@ -134,12 +132,15 @@ export async function getEnrichedTransactions(
       })
     );
 
+    // Get total count with same filters
+    const total = await db.transaction.count({
+      where,
+    });
+
     return {
       success: true,
       transactions: formattedTransactions,
-      total: await db.transaction.count({
-        where: { businessId: business.id },
-      }),
+      total,
     };
   } catch (error) {
     console.error("Error getting enriched transactions:", error);

@@ -31,19 +31,10 @@ import {
 } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { TransactionFilterValues } from "@/lib/types/dashboard";
+import type { TransactionType, TransactionFiltersProps } from "@/lib/types/transactions";
 
 // Re-export the type for easier imports
 export type { TransactionFilterValues };
-
-// Transaction type enum to avoid 'any' type
-type TransactionType = "INCOME" | "EXPENSE" | "ALL";
-
-interface TransactionFiltersProps {
-  categories: string[];
-  accounts: { id: string; name: string }[];
-  onFiltersChange: (filters: TransactionFilterValues) => void;
-  className?: string;
-}
 
 export function TransactionFilters({
   categories,

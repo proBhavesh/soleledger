@@ -24,12 +24,8 @@ import { toast } from "sonner";
 import {
   getReconciliationSummary,
   autoReconcileTransactions,
-  type ReconciliationSummary,
 } from "@/lib/actions/reconciliation-actions";
-
-interface ReconciliationDashboardProps {
-  onViewUnmatched?: () => void;
-}
+import type { ReconciliationSummary, ReconciliationDashboardProps } from "@/lib/types/reconciliation";
 
 export function ReconciliationDashboard({
   onViewUnmatched,

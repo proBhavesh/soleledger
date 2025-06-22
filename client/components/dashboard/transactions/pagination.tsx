@@ -2,14 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ArrowRightIcon, Loader2 } from "lucide-react";
-
-interface PaginationProps {
-  currentPage: number;
-  totalItems: number;
-  pageSize: number;
-  onPageChange: (page: number) => void;
-  isLoading?: boolean;
-}
+import type { PaginationProps } from "@/lib/types/transactions";
 
 export function Pagination({
   currentPage,

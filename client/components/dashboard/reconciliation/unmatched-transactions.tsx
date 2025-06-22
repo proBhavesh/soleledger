@@ -34,17 +34,17 @@ import {
   Calendar,
   DollarSign,
   RefreshCw,
+  FileSearch,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   getUnmatchedTransactions,
   updateReconciliationStatus,
-  type UnmatchedTransaction,
+  unmatchTransaction,
 } from "@/lib/actions/reconciliation-actions";
-
-interface UnmatchedTransactionsProps {
-  onBack?: () => void;
-}
+import { ManualMatchDialog } from "./manual-match-dialog";
+import type { UnmatchedTransaction, UnmatchedTransactionsProps } from "@/lib/types/reconciliation";
 
 export function UnmatchedTransactions({ onBack }: UnmatchedTransactionsProps) {
   const [transactions, setTransactions] = useState<UnmatchedTransaction[]>([]);
@@ -52,6 +52,8 @@ export function UnmatchedTransactions({ onBack }: UnmatchedTransactionsProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isUpdating, setIsUpdating] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<UnmatchedTransaction | null>(null);
+  const [showMatchDialog, setShowMatchDialog] = useState(false);
 
   const fetchTransactions = async () => {
     try {
@@ -110,8 +112,31 @@ export function UnmatchedTransactions({ onBack }: UnmatchedTransactionsProps) {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency: "CAD",
     }).format(Math.abs(amount));
+  };
+
+  const handleManualMatch = (transaction: UnmatchedTransaction) => {
+    setSelectedTransaction(transaction);
+    setShowMatchDialog(true);
+  };
+
+  const handleUnmatch = async (transactionId: string) => {
+    try {
+      setIsUpdating(true);
+      const result = await unmatchTransaction(transactionId);
+      
+      if (result.success) {
+        toast.success("Transaction unmatched successfully");
+        await fetchTransactions();
+      } else {
+        toast.error(result.error || "Failed to unmatch transaction");
+      }
+    } catch {
+      toast.error("Failed to unmatch transaction");
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const formatDate = (date: Date) => {
@@ -322,6 +347,15 @@ export function UnmatchedTransactions({ onBack }: UnmatchedTransactionsProps) {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleManualMatch(transaction)}
+                            disabled={isUpdating}
+                          >
+                            <FileSearch className="h-3 w-3 mr-1" />
+                            Find Match
+                          </Button>
                           {transaction.potentialMatches &&
                             transaction.potentialMatches.length > 0 && (
                               <Button
@@ -338,24 +372,37 @@ export function UnmatchedTransactions({ onBack }: UnmatchedTransactionsProps) {
                                 disabled={isUpdating}
                               >
                                 <Link2 className="h-3 w-3 mr-1" />
-                                Match
+                                Quick Match
                               </Button>
                             )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() =>
-                              handleStatusUpdate(
-                                transaction.id,
-                                "EXCLUDED",
-                                undefined,
-                                "Manually excluded"
-                              )
-                            }
-                            disabled={isUpdating}
-                          >
-                            Exclude
-                          </Button>
+                          {transaction.reconciliationStatus === "MATCHED" ||
+                          transaction.reconciliationStatus === "MANUALLY_MATCHED" ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleUnmatch(transaction.id)}
+                              disabled={isUpdating}
+                            >
+                              <XCircle className="h-3 w-3 mr-1" />
+                              Unmatch
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() =>
+                                handleStatusUpdate(
+                                  transaction.id,
+                                  "EXCLUDED",
+                                  undefined,
+                                  "Manually excluded"
+                                )
+                              }
+                              disabled={isUpdating}
+                            >
+                              Exclude
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -366,6 +413,20 @@ export function UnmatchedTransactions({ onBack }: UnmatchedTransactionsProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Manual Match Dialog */}
+      {selectedTransaction && (
+        <ManualMatchDialog
+          open={showMatchDialog}
+          onOpenChange={setShowMatchDialog}
+          transaction={selectedTransaction}
+          onSuccess={() => {
+            fetchTransactions();
+            setShowMatchDialog(false);
+            setSelectedTransaction(null);
+          }}
+        />
+      )}
     </div>
   );
 }

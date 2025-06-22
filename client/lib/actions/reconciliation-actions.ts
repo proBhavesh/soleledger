@@ -4,59 +4,19 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { subDays } from "date-fns";
-
-// Validation schemas
-const updateReconciliationSchema = z.object({
-  transactionId: z.string(),
-  documentId: z.string().optional(),
-  status: z.enum([
-    "UNMATCHED",
-    "MATCHED",
-    "PARTIALLY_MATCHED",
-    "PENDING_REVIEW",
-    "MANUALLY_MATCHED",
-    "EXCLUDED",
-  ]),
-  notes: z.string().optional(),
-});
-
-const bulkReconcileSchema = z.object({
-  matches: z.array(
-    z.object({
-      transactionId: z.string(),
-      documentId: z.string(),
-      confidence: z.number().min(0).max(1),
-    })
-  ),
-});
-
-export interface ReconciliationSummary {
-  totalTransactions: number;
-  matchedTransactions: number;
-  unmatchedTransactions: number;
-  pendingReview: number;
-  matchedPercentage: number;
-  totalAmount: number;
-  matchedAmount: number;
-  unmatchedAmount: number;
-}
-
-export interface UnmatchedTransaction {
-  id: string;
-  date: Date;
-  amount: number;
-  description: string | null;
-  category: string | null;
-  bankAccount: string | null;
-  reconciliationStatus: string;
-  potentialMatches?: Array<{
-    documentId: string;
-    documentName: string;
-    confidence: number;
-    extractedVendor: string | null;
-    extractedAmount: number | null;
-  }>;
-}
+import {
+  updateReconciliationSchema,
+  bulkReconcileSchema,
+  type ReconciliationSummary,
+  type UnmatchedTransaction,
+  type MatchedTransaction,
+  type ReconciliationActionResponse,
+  type GetUnmatchedTransactionsResponse,
+  type GetAvailableDocumentsResponse,
+  type GetRecentlyMatchedTransactionsResponse,
+  type AutoReconcileResponse,
+  type BulkReconcileResponse,
+} from "@/lib/types/reconciliation";
 
 /**
  * Get reconciliation dashboard summary
@@ -156,12 +116,7 @@ export async function getReconciliationSummary(
 export async function getUnmatchedTransactions(
   limit: number = 50,
   offset: number = 0
-): Promise<{
-  success: boolean;
-  data?: UnmatchedTransaction[];
-  total?: number;
-  error?: string;
-}> {
+): Promise<GetUnmatchedTransactionsResponse> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -246,7 +201,7 @@ export async function getUnmatchedTransactions(
  */
 export async function updateReconciliationStatus(
   data: z.infer<typeof updateReconciliationSchema>
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ReconciliationActionResponse> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -303,11 +258,7 @@ export async function updateReconciliationStatus(
 /**
  * Auto-reconcile transactions based on existing document matches
  */
-export async function autoReconcileTransactions(): Promise<{
-  success: boolean;
-  data?: { processed: number; matched: number };
-  error?: string;
-}> {
+export async function autoReconcileTransactions(): Promise<AutoReconcileResponse> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -394,7 +345,7 @@ export async function autoReconcileTransactions(): Promise<{
  */
 export async function bulkReconcileTransactions(
   data: z.infer<typeof bulkReconcileSchema>
-): Promise<{ success: boolean; data?: { processed: number }; error?: string }> {
+): Promise<BulkReconcileResponse> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -439,5 +390,323 @@ export async function bulkReconcileTransactions(
       return { success: false, error: "Invalid data provided" };
     }
     return { success: false, error: "Failed to bulk reconcile transactions" };
+  }
+}
+
+/**
+ * Get available documents for manual matching
+ */
+export async function getAvailableDocuments(
+  transactionDate?: Date,
+  transactionAmount?: number
+): Promise<GetAvailableDocumentsResponse> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    // Get user's business
+    const business = await db.business.findFirst({
+      where: { ownerId: session.user.id },
+    });
+
+    if (!business) {
+      return { success: false, error: "No business found" };
+    }
+
+    // Get all processed documents
+    const documents = await db.document.findMany({
+      where: {
+        businessId: business.id,
+        processingStatus: "COMPLETED",
+        transactionId: null, // Only get unmatched documents
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // Calculate match scores if transaction info provided
+    const documentsWithScores = documents.map((doc) => {
+      let matchScore = 0;
+      
+      if (transactionAmount && doc.extractedAmount) {
+        const amountDiff = Math.abs(transactionAmount - doc.extractedAmount);
+        const amountTolerance = transactionAmount * 0.05; // 5% tolerance
+        if (amountDiff <= amountTolerance) {
+          matchScore += 0.5;
+        }
+      }
+      
+      if (transactionDate && doc.extractedDate) {
+        const daysDiff = Math.abs(
+          (transactionDate.getTime() - doc.extractedDate.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        if (daysDiff <= 7) {
+          matchScore += 0.3;
+        }
+      }
+
+      return {
+        id: doc.id,
+        name: doc.name,
+        type: doc.type,
+        extractedVendor: doc.extractedVendor,
+        extractedAmount: doc.extractedAmount,
+        extractedDate: doc.extractedDate,
+        processingStatus: doc.processingStatus,
+        url: doc.url,
+        matchScore,
+      };
+    });
+
+    // Sort by match score if transaction info was provided
+    if (transactionDate || transactionAmount) {
+      documentsWithScores.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
+    }
+
+    return { success: true, data: documentsWithScores };
+  } catch (error) {
+    console.error("Error getting available documents:", error);
+    return { success: false, error: "Failed to get available documents" };
+  }
+}
+
+/**
+ * Manually match a transaction with a document
+ */
+export async function manuallyMatchTransaction(
+  transactionId: string,
+  documentId: string,
+  notes?: string
+): Promise<ReconciliationActionResponse> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    // Verify transaction and document belong to user's business
+    const transaction = await db.transaction.findFirst({
+      where: {
+        id: transactionId,
+        business: { ownerId: session.user.id },
+      },
+    });
+
+    const document = await db.document.findFirst({
+      where: {
+        id: documentId,
+        business: { ownerId: session.user.id },
+      },
+    });
+
+    if (!transaction || !document) {
+      return { success: false, error: "Transaction or document not found" };
+    }
+
+    // Create or update the match
+    await db.$transaction([
+      // Create or update reconciliation status
+      db.reconciliationStatus.upsert({
+        where: { transactionId },
+        update: {
+          documentId,
+          status: "MANUALLY_MATCHED",
+          manuallySet: true,
+          reviewedBy: session.user.id,
+          reviewedAt: new Date(),
+          notes,
+        },
+        create: {
+          transactionId,
+          documentId,
+          status: "MANUALLY_MATCHED",
+          manuallySet: true,
+          reviewedBy: session.user.id,
+          reviewedAt: new Date(),
+          notes,
+        },
+      }),
+      // Create or update document match
+      db.documentMatch.upsert({
+        where: {
+          documentId_transactionId: {
+            documentId,
+            transactionId,
+          },
+        },
+        update: {
+          status: "MANUAL",
+          confidence: 1.0,
+          isUserConfirmed: true,
+        },
+        create: {
+          documentId,
+          transactionId,
+          status: "MANUAL",
+          confidence: 1.0,
+          isUserConfirmed: true,
+          matchReason: notes || "Manually matched by user",
+        },
+      }),
+      // Update document to link it to the transaction
+      db.document.update({
+        where: { id: documentId },
+        data: { transactionId },
+      }),
+    ]);
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error manually matching transaction:", error);
+    return { success: false, error: "Failed to match transaction" };
+  }
+}
+
+/**
+ * Unmatch a previously matched transaction
+ */
+export async function unmatchTransaction(
+  transactionId: string
+): Promise<ReconciliationActionResponse> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    // Verify transaction belongs to user's business
+    const transaction = await db.transaction.findFirst({
+      where: {
+        id: transactionId,
+        business: { ownerId: session.user.id },
+      },
+      include: {
+        reconciliation: true,
+      },
+    });
+
+    if (!transaction) {
+      return { success: false, error: "Transaction not found" };
+    }
+
+    const documentId = transaction.reconciliation?.documentId;
+
+    // Remove the match
+    await db.$transaction([
+      // Update reconciliation status
+      db.reconciliationStatus.update({
+        where: { transactionId },
+        data: {
+          status: "UNMATCHED",
+          documentId: null,
+          manuallySet: true,
+          reviewedBy: session.user.id,
+          reviewedAt: new Date(),
+          notes: "Manually unmatched by user",
+        },
+      }),
+      // Remove document link if exists
+      ...(documentId
+        ? [
+            db.document.update({
+              where: { id: documentId },
+              data: { transactionId: null },
+            }),
+          ]
+        : []),
+    ]);
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error unmatching transaction:", error);
+    return { success: false, error: "Failed to unmatch transaction" };
+  }
+}
+
+/**
+ * Get recently matched transactions
+ */
+export async function getRecentlyMatchedTransactions(
+  limit: number = 10
+): Promise<GetRecentlyMatchedTransactionsResponse> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    // Get user's business
+    const business = await db.business.findFirst({
+      where: { ownerId: session.user.id },
+    });
+
+    if (!business) {
+      return { success: false, error: "No business found" };
+    }
+
+    // Get recently matched transactions
+    const transactions = await db.transaction.findMany({
+      where: {
+        businessId: business.id,
+        reconciliation: {
+          status: {
+            in: ["MATCHED", "MANUALLY_MATCHED"],
+          },
+        },
+      },
+      include: {
+        reconciliation: {
+          include: {
+            document: true,
+            reviewer: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+        category: true,
+        bankAccount: true,
+      },
+      orderBy: {
+        reconciliation: {
+          reviewedAt: "desc",
+        },
+      },
+      take: limit,
+    });
+
+    // Format the data
+    const matchedTransactions: MatchedTransaction[] = transactions.map(
+      (transaction) => ({
+        id: transaction.id,
+        date: transaction.date,
+        amount: transaction.amount,
+        description: transaction.description,
+        category: transaction.category?.name || null,
+        bankAccount: transaction.bankAccount?.name || null,
+        reconciliationStatus: transaction.reconciliation?.status || "MATCHED",
+        matchedDocument: transaction.reconciliation?.document
+          ? {
+              id: transaction.reconciliation.document.id,
+              name: transaction.reconciliation.document.name,
+              type: transaction.reconciliation.document.type,
+              extractedVendor: transaction.reconciliation.document.extractedVendor,
+              extractedAmount: transaction.reconciliation.document.extractedAmount,
+              extractedDate: transaction.reconciliation.document.extractedDate,
+            }
+          : undefined,
+        matchedAt: transaction.reconciliation?.reviewedAt || undefined,
+        matchedBy: transaction.reconciliation?.reviewer?.name || undefined,
+        isManualMatch: transaction.reconciliation?.manuallySet || false,
+      })
+    );
+
+    return { success: true, data: matchedTransactions };
+  } catch (error) {
+    console.error("Error getting recently matched transactions:", error);
+    return { success: false, error: "Failed to get matched transactions" };
   }
 }
