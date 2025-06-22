@@ -32,11 +32,11 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="w-[260px] lg:w-[280px] border-r bg-background">
+    <div className="flex h-screen overflow-hidden">
+      <aside className="w-[260px] lg:w-[280px] border-r bg-background h-screen overflow-y-auto">
         <DashboardNav user={session.user} />
       </aside>
-      <main className="flex-1 overflow-hidden p-6">{children}</main>
+      <main className="flex-1 overflow-y-auto p-6">{children}</main>
     </div>
   );
 }

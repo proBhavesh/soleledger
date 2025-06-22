@@ -105,11 +105,11 @@ export function RecentTransactions({
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+    <Card className="border-0 shadow-lg">
+      <CardHeader className="flex flex-row items-center justify-between bg-gradient-to-r from-gray-50 to-white dark:from-gray-900/50 dark:to-gray-800/50 rounded-t-lg">
         <div>
-          <CardTitle>Recent Transactions</CardTitle>
-          <CardDescription>Your latest financial activity</CardDescription>
+          <CardTitle className="text-xl font-semibold">Recent Transactions</CardTitle>
+          <CardDescription className="text-muted-foreground">Your latest financial activity</CardDescription>
         </div>
         <Button
           variant="outline"
@@ -156,28 +156,30 @@ export function RecentTransactions({
               const isIncome = transaction.type === "INCOME";
 
               return (
-                <div key={transaction.id} className="rounded-md border">
+                <div key={transaction.id} className="group rounded-lg border-0 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md transition-all duration-200">
                   <div
-                    className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50"
+                    className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
                     onClick={() => toggleTransactionDetails(transaction.id)}
                   >
                     <div className="flex items-center space-x-3">
                       <div
-                        className={`p-2 rounded-full ${
-                          isIncome ? "bg-green-100" : "bg-red-100"
-                        }`}
+                        className={`p-2.5 rounded-xl ${
+                          isIncome 
+                            ? "bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/30" 
+                            : "bg-gradient-to-br from-red-100 to-rose-100 dark:from-red-900/30 dark:to-rose-900/30"
+                        } shadow-sm group-hover:shadow-md transition-all`}
                       >
                         {isIncome ? (
-                          <ArrowUpIcon className="h-4 w-4 text-green-600" />
+                          <ArrowUpIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
                         ) : (
-                          <ArrowDownIcon className="h-4 w-4 text-red-600" />
+                          <ArrowDownIcon className="h-4 w-4 text-red-600 dark:text-red-400" />
                         )}
                       </div>
                       <div>
-                        <div className="font-medium">
+                        <div className="font-semibold text-gray-900 dark:text-gray-100">
                           {transaction.merchantName || transaction.description}
                         </div>
-                        <div className="flex items-center text-xs text-muted-foreground">
+                        <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                           <span>{formatDate(transaction.date)}</span>
                           {transaction.accountName && (
                             <>
@@ -191,8 +193,10 @@ export function RecentTransactions({
 
                     <div className="flex flex-col items-end">
                       <span
-                        className={`font-medium ${
-                          isIncome ? "text-green-600" : "text-red-600"
+                        className={`font-bold text-lg ${
+                          isIncome 
+                            ? "bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent" 
+                            : "bg-gradient-to-r from-red-600 to-rose-600 bg-clip-text text-transparent"
                         }`}
                       >
                         {isIncome ? "+" : "-"}

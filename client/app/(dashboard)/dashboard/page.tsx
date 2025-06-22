@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoaderCircle, RefreshCw } from "lucide-react";
 import { BankAccountsSummary } from "@/components/dashboard/banking/bank-accounts-summary";
 import { RecurringTransactions } from "@/components/dashboard/transactions/recurring-transactions";
-import { getFinancialSummary, refreshTransactions } from "@/lib/actions/plaid";
+import { getFinancialSummary, refreshTransactions, getMonthlyCashFlow, type MonthlyFlow } from "@/lib/actions/plaid";
 import { toast } from "sonner";
 import { FinancialMetrics } from "@/components/dashboard/overview/financial-metrics";
 import { CashFlowChart } from "@/components/dashboard/charts/cash-flow-chart";
@@ -42,6 +42,7 @@ export default function DashboardPage() {
     recurringExpenses: [],
     bankAccounts: [],
   });
+  const [cashFlowData, setCashFlowData] = useState<MonthlyFlow[]>([]);
 
   const userRole = session?.user?.role || "BUSINESS_OWNER";
   const userName = session?.user?.name || "User";
@@ -78,7 +79,10 @@ export default function DashboardPage() {
   const fetchFinancialData = async () => {
     setIsLoading(true);
     try {
-      const data = await getFinancialSummary();
+      const [data, cashFlow] = await Promise.all([
+        getFinancialSummary(),
+        getMonthlyCashFlow()
+      ]);
 
       // Transform the recurring expenses to match the expected type
       const fixedData = {
@@ -90,6 +94,7 @@ export default function DashboardPage() {
       };
 
       setFinancialData(fixedData as FinancialSummary);
+      setCashFlowData(cashFlow);
     } catch (error) {
       console.error("Error fetching financial data:", error);
       toast.error("Failed to load financial data");
@@ -127,15 +132,23 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* Simple welcome header */}
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-bold tracking-tight">
-          Welcome back, {userName}!
-        </h1>
+    <div className="flex flex-col gap-6">
+      {/* Enhanced welcome header with gradient */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-8 shadow-xl">
+        <div className="absolute inset-0 bg-black/10" />
+        <div className="absolute -top-10 -right-10 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
+        <div className="absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
+        <div className="relative">
+          <h1 className="text-4xl font-bold tracking-tight text-white mb-2">
+            Welcome back, {userName}!
+          </h1>
+          <p className="text-lg text-white/80">
+            Here&apos;s your financial overview for today
+          </p>
+        </div>
         {showWelcomeBanner && (
-          <div className="rounded-lg bg-green-50 border border-green-200 p-4">
-            <p className="text-sm text-green-800">
+          <div className="mt-4 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 p-4">
+            <p className="text-sm text-white font-medium">
               🎉 Subscription activated successfully! You now have access to all
               features.
             </p>
@@ -144,12 +157,12 @@ export default function DashboardPage() {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="accounts">Accounts</TabsTrigger>
-          <TabsTrigger value="recent">Recent Activity</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 bg-muted/50 p-1 rounded-lg">
+          <TabsTrigger value="overview" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md transition-all">Overview</TabsTrigger>
+          <TabsTrigger value="accounts" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md transition-all">Accounts</TabsTrigger>
+          <TabsTrigger value="recent" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md transition-all">Recent Activity</TabsTrigger>
           {userRole === "ACCOUNTANT" && (
-            <TabsTrigger value="clients">Clients</TabsTrigger>
+            <TabsTrigger value="clients" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md transition-all">Clients</TabsTrigger>
           )}
         </TabsList>
 
@@ -170,6 +183,7 @@ export default function DashboardPage() {
                   isRefreshing={isRefreshing}
                   onRefresh={handleRefreshTransactions}
                   className="col-span-4"
+                  monthlyData={cashFlowData}
                 />
                 <Card className="col-span-3">
                   <CardHeader>

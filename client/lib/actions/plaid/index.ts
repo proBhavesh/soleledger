@@ -14,3 +14,4 @@ export {
   getEnrichedTransactions,
   getTransactionDetails,
 } from "./enriched-transactions";
+export { getMonthlyCashFlow, type MonthlyFlow } from "./cash-flow";
