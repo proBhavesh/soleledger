@@ -45,8 +45,8 @@ export function TransactionFilters({
   const searchParams = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const [searchInput, setSearchInput] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("");
-  const [selectedAccount, setSelectedAccount] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedAccount, setSelectedAccount] = useState<string>("all");
   const [selectedType, setSelectedType] = useState<TransactionType>("ALL");
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [minAmount, setMinAmount] = useState<string>("");
@@ -97,8 +97,8 @@ export function TransactionFilters({
   // Initialize filters from URL on first load
   useEffect(() => {
     const search = searchParams.get("search") || "";
-    const category = searchParams.get("category") || "";
-    const accountId = searchParams.get("accountId") || "";
+    const category = searchParams.get("category") || "all";
+    const accountId = searchParams.get("accountId") || "all";
     const fromDate = searchParams.get("from");
     const toDate = searchParams.get("to");
     const type = (searchParams.get("type") as TransactionType) || "ALL";
@@ -137,8 +137,8 @@ export function TransactionFilters({
     const filters: TransactionFilterValues = {};
 
     if (searchInput) filters.search = searchInput;
-    if (selectedCategory) filters.category = selectedCategory;
-    if (selectedAccount) filters.accountId = selectedAccount;
+    if (selectedCategory && selectedCategory !== "all") filters.category = selectedCategory;
+    if (selectedAccount && selectedAccount !== "all") filters.accountId = selectedAccount;
     if (dateRange?.from || dateRange?.to) filters.dateRange = dateRange;
     if (selectedType !== "ALL") filters.type = selectedType;
     if (minAmount) filters.minAmount = parseFloat(minAmount);
@@ -151,8 +151,8 @@ export function TransactionFilters({
   // Clear all filters
   const clearFilters = () => {
     setSearchInput("");
-    setSelectedCategory("");
-    setSelectedAccount("");
+    setSelectedCategory("all");
+    setSelectedAccount("all");
     setDateRange(undefined);
     setSelectedType("ALL");
     setMinAmount("");
@@ -167,8 +167,8 @@ export function TransactionFilters({
     const filters: TransactionFilterValues = {};
 
     if (searchInput) filters.search = searchInput;
-    if (selectedCategory) filters.category = selectedCategory;
-    if (selectedAccount) filters.accountId = selectedAccount;
+    if (selectedCategory && selectedCategory !== "all") filters.category = selectedCategory;
+    if (selectedAccount && selectedAccount !== "all") filters.accountId = selectedAccount;
     if (dateRange?.from || dateRange?.to) filters.dateRange = dateRange;
     if (selectedType !== "ALL") filters.type = selectedType;
     if (minAmount) filters.minAmount = parseFloat(minAmount);
@@ -193,10 +193,10 @@ export function TransactionFilters({
         setSearchInput("");
         break;
       case "category":
-        setSelectedCategory("");
+        setSelectedCategory("all");
         break;
       case "account":
-        setSelectedAccount("");
+        setSelectedAccount("all");
         break;
       case "date":
       case "from":
@@ -217,9 +217,9 @@ export function TransactionFilters({
     // Update filters after removing one
     const filters: TransactionFilterValues = {};
     if (filterType !== "search" && searchInput) filters.search = searchInput;
-    if (filterType !== "category" && selectedCategory)
+    if (filterType !== "category" && selectedCategory && selectedCategory !== "all")
       filters.category = selectedCategory;
-    if (filterType !== "account" && selectedAccount)
+    if (filterType !== "account" && selectedAccount && selectedAccount !== "all")
       filters.accountId = selectedAccount;
     if (
       !["date", "from", "to"].includes(filterType) &&
@@ -293,7 +293,7 @@ export function TransactionFilters({
                     <SelectValue placeholder="All Categories" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Categories</SelectItem>
+                    <SelectItem value="all">All Categories</SelectItem>
                     {categories.map((category) => (
                       <SelectItem key={category} value={category}>
                         {category}
@@ -317,7 +317,7 @@ export function TransactionFilters({
                     <SelectValue placeholder="All Accounts" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Accounts</SelectItem>
+                    <SelectItem value="all">All Accounts</SelectItem>
                     {accounts.map((account) => (
                       <SelectItem key={account.id} value={account.id}>
                         {account.name}

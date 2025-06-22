@@ -7,12 +7,12 @@ import { TransactionList } from "@/components/dashboard/transactions/transaction
 import { TransactionInsights } from "@/components/dashboard/transactions/transaction-insights";
 import { Pagination } from "@/components/dashboard/transactions/pagination";
 import { TransactionFilters, TransactionFilterValues } from "@/components/dashboard/transactions/transaction-filters";
+import { SyncStatus } from "@/components/dashboard/transactions/sync-status";
 import { Transaction } from "@/lib/types/dashboard";
 import { getEnrichedTransactions } from "@/lib/actions/plaid";
 import { toast } from "sonner";
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateRange } from "react-day-picker";
 import { format } from "date-fns";
@@ -39,10 +39,10 @@ export function TransactionsPage({
   const [isLoading, setIsLoading] = useState(false);
   const [isPaginationLoading, setIsPaginationLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(
-    params.category || ""
+    params.category || "all"
   );
   const [selectedAccount, setSelectedAccount] = useState(
-    params.accountId || ""
+    params.accountId || "all"
   );
   const [searchTerm, setSearchTerm] = useState(params.search || "");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
@@ -91,13 +91,13 @@ export function TransactionsPage({
     try {
       // Build filters object
       const filters = {
-        category: selectedCategory || undefined,
+        category: selectedCategory && selectedCategory !== "all" ? selectedCategory : undefined,
         search: searchTerm || undefined,
         dateFrom: dateRange?.from
           ? format(dateRange.from, "yyyy-MM-dd")
           : undefined,
         dateTo: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined,
-        accountId: selectedAccount || undefined,
+        accountId: selectedAccount && selectedAccount !== "all" ? selectedAccount : undefined,
       };
 
       const result = await getEnrichedTransactions(
@@ -127,13 +127,13 @@ export function TransactionsPage({
     try {
       // Build filters object
       const filters = {
-        category: selectedCategory || undefined,
+        category: selectedCategory && selectedCategory !== "all" ? selectedCategory : undefined,
         search: searchTerm || undefined,
         dateFrom: dateRange?.from
           ? format(dateRange.from, "yyyy-MM-dd")
           : undefined,
         dateTo: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined,
-        accountId: selectedAccount || undefined,
+        accountId: selectedAccount && selectedAccount !== "all" ? selectedAccount : undefined,
       };
 
       const result = await getEnrichedTransactions(
@@ -186,8 +186,8 @@ export function TransactionsPage({
 
     // Update local state
     setSearchTerm(filters.search || "");
-    setSelectedCategory(filters.category || "");
-    setSelectedAccount(filters.accountId || "");
+    setSelectedCategory(filters.category || "all");
+    setSelectedAccount(filters.accountId || "all");
     
     // Handle DateRange conversion properly
     if (filters.dateRange && filters.dateRange.from) {
@@ -236,19 +236,10 @@ export function TransactionsPage({
                       All your financial activities with enriched transaction data
                     </CardDescription>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={refreshTransactions}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                    )}
-                    Refresh
-                  </Button>
+                  <SyncStatus 
+                    bankAccounts={bankAccounts}
+                    onSyncComplete={refreshTransactions}
+                  />
                 </div>
               </CardHeader>
               <CardContent>

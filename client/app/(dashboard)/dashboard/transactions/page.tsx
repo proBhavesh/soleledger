@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getEnrichedTransactions } from "@/lib/actions/plaid";
+import { getEnrichedTransactions, syncAllBankAccountsInBackground } from "@/lib/actions/plaid";
 import { getBankAccounts } from "@/lib/actions/plaid/accounts";
 import { TransactionsPage } from "./transactions-page";
 import type { PageProps } from "@/lib/types/transactions";
@@ -14,6 +14,12 @@ export default async function TransactionsPageWrapper({
   if (!session) {
     redirect("/login?callbackUrl=/dashboard/transactions");
   }
+
+  // Trigger background sync of all bank accounts (non-blocking)
+  syncAllBankAccountsInBackground().catch(error => {
+    console.error("Background sync error:", error);
+    // Don't block page load if sync fails
+  });
 
   // Properly await searchParams to access its properties
   const params = await searchParams;

@@ -332,3 +332,97 @@ export async function syncTransactions(
 ) {
   return syncTransactionsEnhanced(accessToken, businessId, userId);
 }
+
+/**
+ * Sync all bank accounts for a user in the background
+ * This is designed to be non-blocking and runs async
+ */
+export async function syncAllBankAccountsInBackground() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const userId = session.user.id;
+
+  try {
+    // Get user's business
+    const business = await db.business.findFirst({
+      where: {
+        ownerId: userId,
+      },
+    });
+
+    if (!business) {
+      return { success: false, error: "No business found" };
+    }
+
+    // Get all bank accounts that need syncing
+    const bankAccounts = await db.bankAccount.findMany({
+      where: {
+        businessId: business.id,
+        userId,
+        plaidAccessToken: {
+          not: null,
+        },
+      },
+    });
+
+    // Check if any accounts need syncing (haven't been synced in last 5 minutes)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const accountsToSync = bankAccounts.filter(
+      account => !account.lastSync || account.lastSync < fiveMinutesAgo
+    );
+
+    if (accountsToSync.length === 0) {
+      return { success: true, message: "All accounts recently synced" };
+    }
+
+    // Start sync for each account in parallel but don't wait
+    // Using Promise.allSettled to handle individual failures gracefully
+    Promise.allSettled(
+      accountsToSync.map(async (account) => {
+        try {
+          if (account.plaidAccessToken) {
+            // Trigger a refresh for the account
+            await plaidClient.transactionsRefresh({
+              access_token: account.plaidAccessToken,
+            });
+
+            // Sync the transactions
+            await syncTransactionsEnhanced(
+              account.plaidAccessToken,
+              account.businessId,
+              userId
+            );
+
+            // Update last sync time
+            await db.bankAccount.update({
+              where: { id: account.id },
+              data: { lastSync: new Date() },
+            });
+          }
+        } catch (error) {
+          console.error(`Failed to sync bank account ${account.id}:`, error);
+          // Don't throw - let other accounts continue syncing
+        }
+      })
+    ).then(results => {
+      const successful = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+      console.log(`Background sync completed: ${successful} successful, ${failed} failed`);
+    });
+
+    // Return immediately without waiting for sync to complete
+    return { 
+      success: true, 
+      message: `Started background sync for ${accountsToSync.length} accounts` 
+    };
+  } catch (error) {
+    console.error("Error initiating background sync:", error);
+    return {
+      success: false,
+      error: "Failed to start background sync",
+    };
+  }
+}

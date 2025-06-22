@@ -8,7 +8,7 @@ export {
   getAccountBalanceHistory,
 } from "./accounts";
 export { getFinancialSummary } from "./summary";
-export { refreshTransactions } from "./transactions";
+export { refreshTransactions, syncAllBankAccountsInBackground } from "./transactions";
 export { getRecurringTransactions } from "./recurring";
 export {
   getEnrichedTransactions,
