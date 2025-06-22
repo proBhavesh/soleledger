@@ -40,10 +40,13 @@ export function PlaidLinkButton({
   const [token, setToken] = useState<string | null>(null);
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [showSyncingDialog, setShowSyncingDialog] = useState(false);
+  const [shouldOpenLink, setShouldOpenLink] = useState(false);
+  const [hasJustConnected, setHasJustConnected] = useState(false);
 
   // Function to fetch a link token when button is clicked
   const getPlaidLinkToken = useCallback(async () => {
     setIsLoading(true);
+    setShouldOpenLink(true);
     try {
       const response = await createLinkToken();
       setToken(response.linkToken);
@@ -51,6 +54,7 @@ export function PlaidLinkButton({
     } catch (error) {
       console.error("Error getting link token:", error);
       toast.error("Failed to start bank connection process");
+      setShouldOpenLink(false);
     } finally {
       setIsLoading(false);
     }
@@ -131,8 +135,14 @@ export function PlaidLinkButton({
         setShowSyncingDialog(false);
       } finally {
         setIsLoading(false);
-        // Reset token to null
+        // Reset token to null and prevent re-opening
         setToken(null);
+        setShouldOpenLink(false);
+        setHasJustConnected(true);
+        // Reset the flag after a short delay
+        setTimeout(() => {
+          setHasJustConnected(false);
+        }, 1000);
       }
     },
     [businessId, onSuccess]
@@ -147,12 +157,14 @@ export function PlaidLinkButton({
     onExit: () => {
       setToken(null);
       setIsLoading(false);
+      setShouldOpenLink(false);
     },
   });
 
   // When token is fetched, open Plaid Link
-  if (token && ready) {
+  if (token && ready && shouldOpenLink && !hasJustConnected) {
     open();
+    setShouldOpenLink(false);
   }
 
   return (
