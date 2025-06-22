@@ -152,7 +152,7 @@ export default function DashboardPage() {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 bg-muted/50 p-1 rounded-lg">
+        <TabsList className={`grid w-full ${userRole === "ACCOUNTANT" ? "grid-cols-4" : "grid-cols-3"} bg-muted/50 p-1 rounded-lg`}>
           <TabsTrigger value="overview" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md transition-all">Overview</TabsTrigger>
           <TabsTrigger value="accounts" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md transition-all">Accounts</TabsTrigger>
           <TabsTrigger value="recent" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md transition-all">Recent Activity</TabsTrigger>

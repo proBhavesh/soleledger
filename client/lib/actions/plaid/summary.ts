@@ -60,11 +60,6 @@ export async function getFinancialSummary() {
       date: {
         gte: thirtyDaysAgo,
       },
-      reference: {
-        not: {
-          startsWith: "recurring-",
-        },
-      },
     },
     orderBy: {
       date: "desc",
@@ -75,13 +70,13 @@ export async function getFinancialSummary() {
     },
   });
 
-  // Calculate totals
+  // Calculate totals (excluding recurring placeholders)
   const totalIncome = transactions
-    .filter((t) => t.type === "INCOME")
+    .filter((t) => t.type === "INCOME" && !t.reference?.startsWith("recurring-"))
     .reduce((sum, t) => sum + t.amount, 0);
 
   const totalExpenses = transactions
-    .filter((t) => t.type === "EXPENSE")
+    .filter((t) => t.type === "EXPENSE" && !t.reference?.startsWith("recurring-"))
     .reduce((sum, t) => sum + t.amount, 0);
 
   // Get pending receipts
@@ -94,13 +89,27 @@ export async function getFinancialSummary() {
   });
 
   // Get recent transactions for display
-  const recentTransactions = transactions.slice(0, 5).map((t) => ({
+  const recentTransactions = transactions.slice(0, 10).map((t) => ({
     id: t.id,
     description: t.description || "Unnamed Transaction",
     amount: t.amount,
     type: t.type,
     date: t.date,
     category: t.category?.name || "Uncategorized",
+    // Add account name from bank accounts
+    accountName: accounts.find(a => a.id === t.bankAccountId)?.name || null,
+    accountId: t.bankAccountId,
+    // Add default values for enriched fields (these would come from Plaid in a real implementation)
+    merchantName: null,
+    merchantLogo: null,
+    originalDescription: t.description,
+    locationCity: null,
+    locationRegion: null,
+    paymentChannel: null,
+    pending: false,
+    categoryIconName: null,
+    categoryConfidence: t.confidence,
+    subcategory: null,
   }));
 
   // Get recurring expenses
