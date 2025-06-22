@@ -11,17 +11,21 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { LayoutGrid, LayoutList } from "lucide-react";
+import { LayoutGrid, LayoutList, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AccountBalanceCardsProps {
   accounts: BankAccount[];
   className?: string;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 export function AccountBalanceCards({
   accounts,
   className,
+  onRefresh,
+  isRefreshing = false,
 }: AccountBalanceCardsProps) {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
@@ -48,25 +52,42 @@ export function AccountBalanceCards({
         <h2 className="text-xl font-semibold tracking-tight">
           Account Balance History
         </h2>
-        <div className="flex space-x-1">
-          <Button
-            variant={viewMode === "grid" ? "default" : "outline"}
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => setViewMode("grid")}
-            title="Grid View"
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === "list" ? "default" : "outline"}
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => setViewMode("list")}
-            title="List View"
-          >
-            <LayoutList className="h-4 w-4" />
-          </Button>
+        <div className="flex items-center space-x-2">
+          {onRefresh && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRefresh}
+              disabled={isRefreshing}
+            >
+              {isRefreshing ? (
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Refresh Data
+            </Button>
+          )}
+          <div className="flex space-x-1">
+            <Button
+              variant={viewMode === "grid" ? "default" : "outline"}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setViewMode("grid")}
+              title="Grid View"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "default" : "outline"}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setViewMode("list")}
+              title="List View"
+            >
+              <LayoutList className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 

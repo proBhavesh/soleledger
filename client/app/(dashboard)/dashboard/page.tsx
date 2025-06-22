@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useSearchParams, useRouter } from "next/navigation";
 // Removed unused Card imports
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LoaderCircle, RefreshCw } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import { BankAccountsSummary } from "@/components/dashboard/banking/bank-accounts-summary";
 import { RecurringTransactions } from "@/components/dashboard/transactions/recurring-transactions";
 import { getFinancialSummary, refreshTransactions, getMonthlyCashFlow, type MonthlyFlow } from "@/lib/actions/plaid";
@@ -19,7 +19,6 @@ import { RecentTransactions } from "@/components/dashboard/transactions/recent-t
 import { PendingDocuments } from "@/components/dashboard/overview/pending-documents";
 import { ClientOverview } from "@/components/dashboard/overview/client-overview";
 import { Client, FinancialSummary } from "@/lib/types/dashboard";
-import { Button } from "@/components/ui/button";
 
 export default function DashboardPage() {
   const { data: session } = useSession();
@@ -205,24 +204,6 @@ export default function DashboardPage() {
         </TabsContent>
 
         <TabsContent value="accounts" className="space-y-4">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-xl font-semibold tracking-tight">
-              Account Balance History
-            </h2>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchFinancialData}
-              disabled={isLoading || isRefreshing}
-            >
-              {isRefreshing ? (
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="mr-2 h-4 w-4" />
-              )}
-              Refresh Data
-            </Button>
-          </div>
           {isLoading ? (
             <div className="flex items-center justify-center py-10">
               <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
@@ -242,6 +223,8 @@ export default function DashboardPage() {
                 accountNumber: account.accountNumber,
                 accountType: account.accountType,
               }))}
+              onRefresh={fetchFinancialData}
+              isRefreshing={isLoading || isRefreshing}
             />
           )}
         </TabsContent>
