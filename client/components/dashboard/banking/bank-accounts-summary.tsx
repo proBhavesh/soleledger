@@ -204,7 +204,7 @@ export function BankAccountsSummary({
             Connect your bank accounts to automatically import transactions
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col items-center justify-center py-10 text-center">
+        <CardContent className="flex flex-col items-center justify-center min-h-[400px] text-center">
           <CircleDollarSign className="h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium">No bank accounts connected</h3>
           <p className="mt-2 text-sm text-muted-foreground max-w-sm">
@@ -220,11 +220,11 @@ export function BankAccountsSummary({
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+    <Card className="border-0 shadow-lg">
+      <CardHeader className="flex flex-row items-center justify-between bg-gradient-to-r from-gray-50 to-white dark:from-gray-900/50 dark:to-gray-800/50 rounded-t-lg">
         <div>
-          <CardTitle>Bank Accounts</CardTitle>
-          <CardDescription>Your connected financial accounts</CardDescription>
+          <CardTitle className="text-xl font-semibold">Bank Accounts</CardTitle>
+          <CardDescription className="text-muted-foreground">Your connected financial accounts</CardDescription>
         </div>
         <Button
           variant="outline"
@@ -240,8 +240,8 @@ export function BankAccountsSummary({
           <span className="ml-2 hidden sm:inline">Refresh All</span>
         </Button>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
+      <CardContent className="p-0">
+        <div className="space-y-2 max-h-[400px] overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
           {accounts.map((account) => {
             // Safe access to balance values with proper type checking
             const currentBalance =
@@ -261,7 +261,7 @@ export function BankAccountsSummary({
             return (
               <div
                 key={account.id}
-                className="flex flex-col rounded-lg border p-4 transition-all hover:border-primary/50 hover:shadow-sm cursor-pointer"
+                className="flex flex-col rounded-lg border-0 bg-white dark:bg-gray-800/50 shadow-sm hover:shadow-md p-4 transition-all cursor-pointer group"
                 onClick={() => handleAccountClick(account.id)}
               >
                 <div className="flex items-center justify-between">
@@ -305,12 +305,12 @@ export function BankAccountsSummary({
                         <RefreshCw className="h-4 w-4" />
                       )}
                     </Button>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                   </div>
                 </div>
 
                 <div className="mt-3 flex items-center justify-between">
-                  <div className="text-2xl font-semibold">
+                  <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                     {formatCurrency(currentBalance, account.currency)}
                   </div>
 
@@ -351,7 +351,7 @@ export function BankAccountsSummary({
           })}
         </div>
       </CardContent>
-      <CardFooter>
+      <CardFooter className="border-t bg-gray-50/50 dark:bg-gray-900/50">
         <PlaidLinkButton
           variant="outline"
           className="w-full"

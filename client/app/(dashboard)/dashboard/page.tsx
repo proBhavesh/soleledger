@@ -2,14 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { useSearchParams } from "next/navigation";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { useSearchParams, useRouter } from "next/navigation";
+// Removed unused Card imports
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoaderCircle, RefreshCw } from "lucide-react";
 import { BankAccountsSummary } from "@/components/dashboard/banking/bank-accounts-summary";
@@ -30,6 +24,7 @@ import { Button } from "@/components/ui/button";
 export default function DashboardPage() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [financialData, setFinancialData] = useState<FinancialSummary>({
@@ -185,17 +180,11 @@ export default function DashboardPage() {
                   className="col-span-4"
                   monthlyData={cashFlowData}
                 />
-                <Card className="col-span-3">
-                  <CardHeader>
-                    <CardTitle>Bank Accounts</CardTitle>
-                    <CardDescription>
-                      Your connected financial accounts
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <BankAccountsSummary />
-                  </CardContent>
-                </Card>
+                <div className="col-span-3">
+                  <BankAccountsSummary 
+                    onAccountSelect={(accountId) => router.push(`/dashboard/bank-accounts?account=${accountId}`)}
+                  />
+                </div>
               </div>
 
               {/* Income vs Expenses Chart */}
