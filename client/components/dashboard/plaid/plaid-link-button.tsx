@@ -3,8 +3,9 @@
 import { useState, useCallback } from "react";
 import { usePlaidLink, PlaidLinkOnSuccessMetadata } from "react-plaid-link";
 import { Button } from "@/components/ui/button";
-import { LucideLoader2, CircleDollarSign, RefreshCw } from "lucide-react";
+import { LucideLoader2, CircleDollarSign, RefreshCw, Lock } from "lucide-react";
 import { createLinkToken, exchangePublicToken } from "@/lib/actions/plaid";
+import { useBusinessContext } from "@/lib/contexts/business-context";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -34,6 +35,7 @@ export function PlaidLinkButton({
   variant = "default",
   size = "default",
 }: PlaidLinkButtonProps) {
+  const { permissions, isAccountant } = useBusinessContext();
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState(0);
@@ -43,8 +45,17 @@ export function PlaidLinkButton({
   const [shouldOpenLink, setShouldOpenLink] = useState(false);
   const [hasJustConnected, setHasJustConnected] = useState(false);
 
+  // Check if user has permission to manage financial accounts
+  const canManageAccounts = permissions.canManageFinancials;
+
   // Function to fetch a link token when button is clicked
   const getPlaidLinkToken = useCallback(async () => {
+    // Check permissions before proceeding
+    if (!canManageAccounts) {
+      toast.error("You don't have permission to connect bank accounts");
+      return;
+    }
+
     setIsLoading(true);
     setShouldOpenLink(true);
     try {
@@ -58,7 +69,7 @@ export function PlaidLinkButton({
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [canManageAccounts]);
 
   // Handle success from Plaid Link
   const handleSuccess = useCallback(
@@ -171,20 +182,28 @@ export function PlaidLinkButton({
     <>
       <Button
         className={className}
-        onClick={getPlaidLinkToken}
-        disabled={isLoading || isSyncing}
-        variant={variant}
+        onClick={canManageAccounts ? getPlaidLinkToken : () => {
+          toast.error(`${isAccountant ? 'You need financial management access' : 'Insufficient permissions'} to connect bank accounts`);
+        }}
+        disabled={isLoading || isSyncing || !canManageAccounts}
+        variant={!canManageAccounts ? "outline" : variant}
         size={size}
+        title={!canManageAccounts ? "You don't have permission to connect bank accounts" : undefined}
       >
         {isLoading ? (
           <>
             <LucideLoader2 className="mr-2 h-4 w-4 animate-spin" />
             Connecting...
           </>
+        ) : !canManageAccounts ? (
+          <>
+            <Lock className="mr-2 h-4 w-4" />
+            {isAccountant ? "Connect Client Account" : "Connect Bank Account"}
+          </>
         ) : (
           <>
             <CircleDollarSign className="mr-2 h-4 w-4" />
-            Connect Bank Account
+            {isAccountant ? "Connect Client Account" : "Connect Bank Account"}
           </>
         )}
       </Button>

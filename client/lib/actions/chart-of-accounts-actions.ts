@@ -462,58 +462,53 @@ export async function createDefaultChartOfAccounts(
   userId: string
 ) {
   try {
-    // Create a map to store created accounts for parent-child relationships
-    const createdAccounts = new Map<string, string>();
+    // Prepare all parent accounts for batch creation
+    const parentAccounts = DEFAULT_CHART_OF_ACCOUNTS.filter(account => !account.parent);
+    const childAccounts = DEFAULT_CHART_OF_ACCOUNTS.filter(account => account.parent);
 
-    // First pass: Create all parent accounts
-    for (const account of DEFAULT_CHART_OF_ACCOUNTS) {
-      if (!account.parent) {
-        const created = await db.category.create({
-          data: {
-            businessId,
-            accountCode: account.code,
-            name: account.name,
-            accountType: account.type as
-              | "ASSET"
-              | "LIABILITY"
-              | "EQUITY"
-              | "INCOME"
-              | "EXPENSE",
-            isDefault: true,
-            sortOrder: account.sort,
-            creatorId: userId,
-          },
-        });
-        createdAccounts.set(account.code, created.id);
-      }
-    }
+    // Create all parent accounts in a single transaction
+    const parentCreateData = parentAccounts.map(account => ({
+      businessId,
+      accountCode: account.code,
+      name: account.name,
+      accountType: account.type as "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE",
+      isDefault: true,
+      sortOrder: account.sort,
+      creatorId: userId,
+    }));
 
-    // Second pass: Create child accounts with parent references
-    for (const account of DEFAULT_CHART_OF_ACCOUNTS) {
-      if (account.parent) {
-        const parentId = createdAccounts.get(account.parent);
-        if (parentId) {
-          const created = await db.category.create({
-            data: {
-              businessId,
-              accountCode: account.code,
-              name: account.name,
-              accountType: account.type as
-                | "ASSET"
-                | "LIABILITY"
-                | "EQUITY"
-                | "INCOME"
-                | "EXPENSE",
-              parentId,
-              isDefault: true,
-              sortOrder: account.sort,
-              creatorId: userId,
-            },
-          });
-          createdAccounts.set(account.code, created.id);
-        }
-      }
-    }
+    await db.category.createMany({
+      data: parentCreateData,
+    });
+
+    // Get created parent accounts to map codes to IDs
+    const createdParents = await db.category.findMany({
+      where: {
+        businessId,
+        accountCode: { in: parentAccounts.map(a => a.code) },
+      },
+      select: { id: true, accountCode: true },
+    });
+
+    const parentMap = new Map(createdParents.map(p => [p.accountCode, p.id]));
+
+    // Create child accounts with parent references
+    const childCreateData = childAccounts
+      .filter(account => parentMap.has(account.parent!))
+      .map(account => ({
+        businessId,
+        accountCode: account.code,
+        name: account.name,
+        accountType: account.type as "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE",
+        parentId: parentMap.get(account.parent!)!,
+        isDefault: true,
+        sortOrder: account.sort,
+        creatorId: userId,
+      }));
+
+    await db.category.createMany({
+      data: childCreateData,
+    });
 
     return {
       success: true,

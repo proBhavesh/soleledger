@@ -84,39 +84,54 @@ export async function registerAction(formData: FormData) {
 
     // Create corresponding profile based on role
     if (role === "BUSINESS_OWNER") {
-      // Create business profile
-      await db.businessProfile.create({
-        data: {
-          userId: user.id,
-          businessName: `${name}'s Business`, // Default business name
-        },
-      });
+      try {
+        // Create business profile
+        await db.businessProfile.create({
+          data: {
+            userId: user.id,
+            businessName: `${name}'s Business`, // Default business name
+          },
+        });
 
-      // Create a default business for the user
-      const business = await db.business.create({
-        data: {
-          name: `${name}'s Business`,
-          ownerId: user.id,
-          industry: "Other", // Default industry
-        },
-      });
+        // Create a default business for the user
+        const business = await db.business.create({
+          data: {
+            name: `${name}'s Business`,
+            ownerId: user.id,
+            industry: "Other", // Default industry
+          },
+        });
 
-      // Create default Chart of Accounts for the business
-      await createDefaultChartOfAccounts(business.id, user.id);
+        // Create default Chart of Accounts for the business (async, non-blocking)
+        createDefaultChartOfAccounts(business.id, user.id).catch(chartError => {
+          console.error("Chart of accounts creation failed (background):", chartError);
+        });
+      } catch (profileError) {
+        console.error("Business profile creation error:", profileError);
+        // Clean up user if profile creation fails
+        await db.user.delete({ where: { id: user.id } });
+        return { error: "Failed to create business profile" };
+      }
     } else if (role === "ACCOUNTANT") {
-      await db.accountantProfile.create({
-        data: {
-          userId: user.id,
-          firmName: `${name}'s Accounting`, // Default firm name
-        },
-      });
+      try {
+        await db.accountantProfile.create({
+          data: {
+            userId: user.id,
+            firmName: `${name}'s Accounting`, // Default firm name
+          },
+        });
+      } catch (profileError) {
+        console.error("Accountant profile creation error:", profileError);
+        // Clean up user if profile creation fails
+        await db.user.delete({ where: { id: user.id } });
+        return { error: "Failed to create accountant profile" };
+      }
     }
 
     // Return credentials for auto-login
     return {
       success: "Account created successfully",
       email,
-      password,
       autoLogin: true,
     };
   } catch (error) {

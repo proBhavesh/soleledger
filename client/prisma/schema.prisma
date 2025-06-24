@@ -39,6 +39,7 @@ model User {
   transactions        Transaction[]      @relation("TransactionCreator")
   reconReviews        ReconciliationStatus[] @relation("ReconciliationReviewer")
   generatedReports    ReportData[]       @relation("ReportGenerator")
+  invitedMembers      BusinessMember[]   @relation("BusinessMemberInviter")
 }
 
 model Account {
@@ -126,14 +127,20 @@ model Business {
 }
 
 model BusinessMember {
-  id         String   @id @default(cuid())
-  businessId String
-  userId     String
-  role       String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String              @id @default(cuid())
+  businessId  String
+  userId      String
+  role        String              // Keep for backward compatibility
+  accessLevel BusinessAccessLevel @default(VIEW_ONLY)
+  permissions Json?               // Additional granular permissions if needed
+  invitedBy   String?             // Who invited this member
+  invitedAt   DateTime?           // When they were invited
+  joinedAt    DateTime?           // When they accepted the invitation
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  business    Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inviter     User?               @relation("BusinessMemberInviter", fields: [invitedBy], references: [id])
 
   @@unique([businessId, userId])
 }
@@ -151,6 +158,8 @@ model TeamInvitation {
   updatedAt  DateTime         @updatedAt
   receiver   User?            @relation("InvitationReceiver", fields: [receiverId], references: [id])
   sender     User             @relation("InvitationSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@unique([email, businessId], name: "email_businessId")
 }
 
 model Subscription {
@@ -232,6 +241,7 @@ model Category {
   parent        Category?       @relation("SubCategories", fields: [parentId], references: [id])
   subCategories Category[]      @relation("SubCategories")
   transactions  Transaction[]
+  journalEntries JournalEntry[]
 
   @@unique([businessId, accountCode])
   @@index([businessId, accountType])
@@ -261,10 +271,28 @@ model Transaction {
   documents     Document[]
   matches       DocumentMatch[]
   reconciliation ReconciliationStatus?
+  journalEntries JournalEntry[]
   bankAccount   BankAccount?    @relation(fields: [bankAccountId], references: [id])
   business      Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
   category      Category?       @relation(fields: [categoryId], references: [id])
   createdBy     User            @relation("TransactionCreator", fields: [createdById], references: [id], onDelete: Cascade)
+}
+
+model JournalEntry {
+  id              String      @id @default(cuid())
+  transactionId   String
+  accountId       String      // Reference to Category (Chart of Accounts)
+  debitAmount     Float       @default(0)
+  creditAmount    Float       @default(0)
+  description     String?     // Optional line-item description
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  transaction     Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  account         Category    @relation(fields: [accountId], references: [id])
+  
+  @@index([transactionId])
+  @@index([accountId])
 }
 
 model Document {
@@ -402,6 +430,13 @@ enum UserRole {
   BUSINESS_OWNER
   ACCOUNTANT
   ADMIN
+}
+
+enum BusinessAccessLevel {
+  VIEW_ONLY           // Can view all data but not modify
+  FULL_MANAGEMENT     // Can view and modify all data (like business owner)
+  FINANCIAL_ONLY      // Can manage financial data (transactions, bank accounts)
+  DOCUMENTS_ONLY      // Can manage documents and receipts
 }
 
 enum SubscriptionStatus {

@@ -2,12 +2,14 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "crypto";
 
-// Initialize S3 client
+// Initialize S3 client for Supabase Storage
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION!,
+  forcePathStyle: true,
+  region: process.env.STORAGE_REGION!,
+  endpoint: process.env.STORAGE_ENDPOINT!,
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    accessKeyId: process.env.STORAGE_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.STORAGE_ACCESS_KEY_SECRET!,
   },
 });
 
@@ -28,9 +30,10 @@ export async function generatePresignedUrl(
   // Generate unique file key with user ID and timestamp
   const fileExtension = fileName.split(".").pop();
   const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
-  const fileKey = `receipts/${userId}/${Date.now()}-${randomUUID()}.${fileExtension}`;
+  const fileKey = `${userId}/${Date.now()}-${randomUUID()}.${fileExtension}`;
 
-  const bucket = process.env.AWS_S3_BUCKET!;
+  // Get bucket name from environment
+  const bucket = process.env.STORAGE_BUCKET_NAME!;
 
   const command = new PutObjectCommand({
     Bucket: bucket,
@@ -45,8 +48,9 @@ export async function generatePresignedUrl(
   // Generate presigned URL valid for 5 minutes
   const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
 
-  // Construct the final file URL
-  const fileUrl = `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileKey}`;
+  // Construct the final file URL for Supabase Storage
+  const projectRef = process.env.STORAGE_ENDPOINT!.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1];
+  const fileUrl = `https://${projectRef}.supabase.co/storage/v1/object/public/${bucket}/${fileKey}`;
 
   return {
     uploadUrl,
@@ -56,10 +60,11 @@ export async function generatePresignedUrl(
 }
 
 /**
- * Get the public URL for a file in S3
+ * Get the public URL for a file in Supabase Storage
  */
 export function getS3FileUrl(bucket: string, key: string): string {
-  return `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+  const projectRef = process.env.STORAGE_ENDPOINT!.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1];
+  return `https://${projectRef}.supabase.co/storage/v1/object/public/${bucket}/${key}`;
 }
 
 /**

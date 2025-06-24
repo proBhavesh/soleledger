@@ -7,7 +7,7 @@ import {
   generatePresignedUrl,
   validateFileType,
   validateFileSize,
-} from "@/lib/aws/s3";
+} from "@/lib/storage/supabase-storage";
 import {
   processReceiptWithAI,
   findTransactionMatches,

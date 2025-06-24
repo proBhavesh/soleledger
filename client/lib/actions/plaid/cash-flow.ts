@@ -13,20 +13,47 @@ export interface MonthlyFlow {
 /**
  * Gets monthly cash flow data for the last 6 months
  */
-export async function getMonthlyCashFlow(): Promise<MonthlyFlow[]> {
+export async function getMonthlyCashFlow(businessId?: string): Promise<MonthlyFlow[]> {
   const session = await auth();
   if (!session?.user?.id) {
     throw new Error("Unauthorized");
   }
 
   const userId = session.user.id;
+  const userRole = session.user.role;
 
-  // Get active business for the user
-  const business = await db.business.findFirst({
-    where: {
-      ownerId: userId,
-    },
-  });
+  let business;
+
+  if (businessId) {
+    // Verify user has access to this business
+    if (userRole === "BUSINESS_OWNER") {
+      // Business owners can only access their own business
+      business = await db.business.findFirst({
+        where: {
+          id: businessId,
+          ownerId: userId,
+        },
+      });
+    } else if (userRole === "ACCOUNTANT") {
+      // Accountants can access businesses they are members of or own
+      business = await db.business.findFirst({
+        where: {
+          id: businessId,
+          OR: [
+            { ownerId: userId },
+            { members: { some: { userId } } },
+          ],
+        },
+      });
+    }
+  } else {
+    // Default behavior: get user's owned business
+    business = await db.business.findFirst({
+      where: {
+        ownerId: userId,
+      },
+    });
+  }
 
   if (!business) {
     return [];

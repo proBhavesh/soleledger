@@ -12,7 +12,6 @@ import {
   type ProfitLossData,
   type ExpenseCategoriesData,
   type ReconciliationSummaryReport,
-  type BalanceSheetItem,
   type BalanceSheetData,
   type CashFlowItem,
   type CashFlowData,
@@ -555,7 +554,7 @@ function calculateReconciliationBreakdown(
 }
 
 /**
- * Generate Balance Sheet Report
+ * Generate Balance Sheet Report using journal entries (double-entry bookkeeping)
  */
 export async function generateBalanceSheetReport(
   data: ReportRequest,
@@ -578,337 +577,374 @@ export async function generateBalanceSheetReport(
       return { success: false, error: "No business found" };
     }
 
-    // Get all Chart of Accounts categories for the business
+    // Get all Chart of Accounts categories with their journal entries
     const allCategories = await db.category.findMany({
       where: {
         businessId: business.id,
         isActive: true,
       },
       include: {
-        transactions: {
+        journalEntries: {
           where: {
-            date: {
-              lte: validatedData.endDate,
+            transaction: {
+              date: {
+                lte: validatedData.endDate,
+              },
             },
           },
           include: {
-            reconciliation: true,
+            transaction: true,
           },
         },
       },
       orderBy: [{ sortOrder: "asc" }, { accountCode: "asc" }],
     });
 
-    // Get bank account balances as of the end date
-    const bankAccounts = await db.bankAccount.findMany({
-      where: {
-        businessId: business.id,
-      },
-    });
+    // Calculate balances for each account using journal entries
+    const accountBalances = new Map<string, {
+      category: typeof allCategories[0];
+      balance: number;
+    }>();
 
-    // Calculate total cash from bank accounts (most recent balances)
-    const totalCash = bankAccounts.reduce(
-      (sum, account) => sum + (account.balance || 0),
-      0
-    );
+    for (const category of allCategories) {
+      let balance = 0;
 
-    // Build Balance Sheet using Chart of Accounts structure
+      // Calculate balance based on account type and journal entries
+      for (const entry of category.journalEntries) {
+        const debitAmount = entry.debitAmount || 0;
+        const creditAmount = entry.creditAmount || 0;
 
-    // ASSETS
-    const assetCategories = allCategories.filter(
-      (cat) => cat.accountType === "ASSET"
-    );
+        switch (category.accountType) {
+          case "ASSET":
+          case "EXPENSE":
+            // For assets and expenses: debits increase, credits decrease
+            balance += debitAmount - creditAmount;
+            break;
+          case "LIABILITY":
+          case "EQUITY":
+          case "INCOME":
+            // For liabilities, equity, and income: credits increase, debits decrease
+            balance += creditAmount - debitAmount;
+            break;
+        }
+      }
 
-    const currentAssets: BalanceSheetItem[] = [];
-    const nonCurrentAssets: BalanceSheetItem[] = [];
-
-    // Add cash from bank accounts as first asset
-    if (totalCash !== 0) {
-      const cashTransactions = allCategories
-        .filter((cat) => cat.accountCode.startsWith("10")) // Cash accounts typically 1000-1099
-        .flatMap((cat) => cat.transactions);
-
-      currentAssets.push({
-        name: "Cash and Bank Accounts",
-        amount: totalCash,
-        reconciliation: calculateReconciliationBreakdown(cashTransactions),
-      });
+      if (balance !== 0) {
+        accountBalances.set(category.id, { category, balance });
+      }
     }
 
-    // Process other asset categories
-    assetCategories.forEach((category) => {
-      const categoryBalance = category.transactions.reduce(
-        (sum, transaction) => {
-          // For assets: debits increase, credits decrease
-          // Income transactions to asset accounts are credits (decrease)
-          // Expense transactions from asset accounts are debits (increase)
-          if (transaction.type === "EXPENSE") {
-            return sum + Math.abs(transaction.amount); // Debit increases asset
-          } else {
-            return sum - Math.abs(transaction.amount); // Credit decreases asset
-          }
-        },
-        0
-      );
+    // Group accounts by type
+    const assetAccounts = allCategories.filter(c => c.accountType === "ASSET");
+    const liabilityAccounts = allCategories.filter(c => c.accountType === "LIABILITY");
+    const equityAccounts = allCategories.filter(c => c.accountType === "EQUITY");
+    const incomeAccounts = allCategories.filter(c => c.accountType === "INCOME");
+    const expenseAccounts = allCategories.filter(c => c.accountType === "EXPENSE");
 
-      if (Math.abs(categoryBalance) > 0.01) {
-        // Only include accounts with balances
-        const balanceSheetItem: BalanceSheetItem = {
-          name: `${category.accountCode} - ${category.name}`,
-          amount: categoryBalance,
-          reconciliation: calculateReconciliationBreakdown(
-            category.transactions
-          ),
+    // Calculate totals for each section
+    let totalAssets = 0;
+    let totalLiabilities = 0;
+    let totalEquity = 0;
+    let totalIncome = 0;
+    let totalExpenses = 0;
+
+    // Assets
+    const assets = {
+      current: [] as Array<{ name: string; accountCode: string; amount: number }>,
+      nonCurrent: [] as Array<{ name: string; accountCode: string; amount: number }>,
+      total: 0,
+    };
+
+    for (const account of assetAccounts) {
+      const accountData = accountBalances.get(account.id);
+      if (accountData && accountData.balance !== 0) {
+        const item = {
+          name: account.name,
+          accountCode: account.accountCode,
+          amount: Math.abs(accountData.balance),
         };
 
-        // Categorize as current vs non-current based on account code
-        const accountCodeNum = parseInt(category.accountCode);
-        if (accountCodeNum < 1500) {
-          currentAssets.push(balanceSheetItem);
+        if (parseInt(account.accountCode) < 1500) {
+          assets.current.push(item);
         } else {
-          nonCurrentAssets.push(balanceSheetItem);
+          assets.nonCurrent.push(item);
         }
+        
+        totalAssets += accountData.balance;
       }
-    });
+    }
 
-    const totalCurrentAssets = currentAssets.reduce(
-      (sum, item) => sum + item.amount,
-      0
-    );
-    const totalNonCurrentAssets = nonCurrentAssets.reduce(
-      (sum, item) => sum + item.amount,
-      0
-    );
-    const totalAssets = totalCurrentAssets + totalNonCurrentAssets;
+    assets.total = totalAssets;
 
-    // LIABILITIES
-    const liabilityCategories = allCategories.filter(
-      (cat) => cat.accountType === "LIABILITY"
-    );
+    // Liabilities
+    const liabilities = {
+      current: [] as Array<{ name: string; accountCode: string; amount: number }>,
+      nonCurrent: [] as Array<{ name: string; accountCode: string; amount: number }>,
+      total: 0,
+    };
 
-    const currentLiabilities: BalanceSheetItem[] = [];
-    const nonCurrentLiabilities: BalanceSheetItem[] = [];
-
-    liabilityCategories.forEach((category) => {
-      const categoryBalance = category.transactions.reduce(
-        (sum, transaction) => {
-          // For liabilities: credits increase, debits decrease
-          // Expense transactions to liability accounts are debits (decrease)
-          // Income transactions from liability accounts are credits (increase)
-          if (transaction.type === "INCOME") {
-            return sum + Math.abs(transaction.amount); // Credit increases liability
-          } else {
-            return sum - Math.abs(transaction.amount); // Debit decreases liability
-          }
-        },
-        0
-      );
-
-      if (Math.abs(categoryBalance) > 0.01) {
-        // Only include accounts with balances
-        const balanceSheetItem: BalanceSheetItem = {
-          name: `${category.accountCode} - ${category.name}`,
-          amount: Math.abs(categoryBalance), // Show as positive for balance sheet
-          reconciliation: calculateReconciliationBreakdown(
-            category.transactions
-          ),
+    for (const account of liabilityAccounts) {
+      const accountData = accountBalances.get(account.id);
+      if (accountData && accountData.balance !== 0) {
+        const item = {
+          name: account.name,
+          accountCode: account.accountCode,
+          amount: Math.abs(accountData.balance),
         };
 
-        // Categorize as current vs non-current based on account code
-        const accountCodeNum = parseInt(category.accountCode);
-        if (accountCodeNum < 2500) {
-          currentLiabilities.push(balanceSheetItem);
+        if (parseInt(account.accountCode) < 2500) {
+          liabilities.current.push(item);
         } else {
-          nonCurrentLiabilities.push(balanceSheetItem);
+          liabilities.nonCurrent.push(item);
         }
+        
+        totalLiabilities += accountData.balance;
       }
-    });
+    }
 
-    const totalCurrentLiabilities = currentLiabilities.reduce(
-      (sum, item) => sum + item.amount,
-      0
-    );
-    const totalNonCurrentLiabilities = nonCurrentLiabilities.reduce(
-      (sum, item) => sum + item.amount,
-      0
-    );
-    const totalLiabilities =
-      totalCurrentLiabilities + totalNonCurrentLiabilities;
+    liabilities.total = totalLiabilities;
 
-    // EQUITY
-    const equityCategories = allCategories.filter(
-      (cat) => cat.accountType === "EQUITY"
-    );
-
-    const equityItems: BalanceSheetItem[] = [];
-
-    // Calculate retained earnings from income and expense accounts
-    const incomeCategories = allCategories.filter(
-      (cat) => cat.accountType === "INCOME"
-    );
-    const expenseCategories = allCategories.filter(
-      (cat) => cat.accountType === "EXPENSE"
-    );
-
-    const totalIncome = incomeCategories.reduce((sum, category) => {
-      return (
-        sum +
-        category.transactions.reduce((catSum, transaction) => {
-          return catSum + Math.abs(transaction.amount);
-        }, 0)
-      );
-    }, 0);
-
-    const totalExpenses = expenseCategories.reduce((sum, category) => {
-      return (
-        sum +
-        category.transactions.reduce((catSum, transaction) => {
-          return catSum + Math.abs(transaction.amount);
-        }, 0)
-      );
-    }, 0);
-
-    const currentYearEarnings = totalIncome - totalExpenses;
-
-    // Add current year earnings
-    const allIncomeExpenseTransactions = [
-      ...incomeCategories.flatMap((cat) => cat.transactions),
-      ...expenseCategories.flatMap((cat) => cat.transactions),
-    ];
-
-    equityItems.push({
-      name: "Current Year Earnings",
-      amount: currentYearEarnings,
-      reconciliation: calculateReconciliationBreakdown(
-        allIncomeExpenseTransactions
-      ),
-    });
-
-    // Add other equity accounts
-    equityCategories.forEach((category) => {
-      const categoryBalance = category.transactions.reduce(
-        (sum, transaction) => {
-          // For equity: credits increase, debits decrease
-          if (transaction.type === "INCOME") {
-            return sum + Math.abs(transaction.amount);
-          } else {
-            return sum - Math.abs(transaction.amount);
-          }
-        },
-        0
-      );
-
-      if (Math.abs(categoryBalance) > 0.01) {
-        equityItems.push({
-          name: `${category.accountCode} - ${category.name}`,
-          amount: categoryBalance,
-          reconciliation: calculateReconciliationBreakdown(
-            category.transactions
-          ),
-        });
+    // Calculate net income (Income - Expenses)
+    for (const account of incomeAccounts) {
+      const accountData = accountBalances.get(account.id);
+      if (accountData) {
+        totalIncome += accountData.balance;
       }
-    });
+    }
 
-    const totalEquity = equityItems.reduce((sum, item) => sum + item.amount, 0);
+    for (const account of expenseAccounts) {
+      const accountData = accountBalances.get(account.id);
+      if (accountData) {
+        totalExpenses += accountData.balance;
+      }
+    }
 
-    // Calculate reconciliation summaries
-    const assetTransactions = assetCategories.flatMap(
-      (cat) => cat.transactions
-    );
-    const liabilityTransactions = liabilityCategories.flatMap(
-      (cat) => cat.transactions
-    );
-    const equityTransactions = [
-      ...equityCategories.flatMap((cat) => cat.transactions),
-      ...allIncomeExpenseTransactions,
-    ];
-    const allTransactions = [
-      ...assetTransactions,
-      ...liabilityTransactions,
-      ...equityTransactions,
-    ];
+    const netIncome = totalIncome - totalExpenses;
 
-    const assetsReconciliation =
-      calculateReconciliationBreakdown(assetTransactions);
-    const liabilitiesReconciliation = calculateReconciliationBreakdown(
-      liabilityTransactions
-    );
-    const equityReconciliation =
-      calculateReconciliationBreakdown(equityTransactions);
-    const overallReconciliation =
-      calculateReconciliationBreakdown(allTransactions);
+    // Equity (including retained earnings)
+    const equity = {
+      items: [] as Array<{ name: string; accountCode: string; amount: number }>,
+      retainedEarnings: 0,
+      currentYearEarnings: netIncome,
+      total: 0,
+    };
 
-    // Balance check
-    const liabilitiesAndEquityTotal = totalLiabilities + totalEquity;
-    const isBalanced = Math.abs(totalAssets - liabilitiesAndEquityTotal) < 0.01;
-    const difference = totalAssets - liabilitiesAndEquityTotal;
+    for (const account of equityAccounts) {
+      const accountData = accountBalances.get(account.id);
+      if (accountData && accountData.balance !== 0) {
+        if (account.accountCode === "3999" || account.name.toLowerCase().includes("retained")) {
+          equity.retainedEarnings += accountData.balance;
+        } else {
+          equity.items.push({
+            name: account.name,
+            accountCode: account.accountCode,
+            amount: Math.abs(accountData.balance),
+          });
+        }
+        
+        totalEquity += accountData.balance;
+      }
+    }
 
-    const period = `As of ${validatedData.endDate.toLocaleDateString()}`;
-    const asOfDate = validatedData.endDate.toLocaleDateString();
+    // Add current year earnings to equity
+    totalEquity += netIncome;
+    equity.total = totalEquity;
 
-    const reportData: BalanceSheetData = {
-      period,
-      asOfDate,
+    // Check if balance sheet balances
+    const difference = totalAssets - (totalLiabilities + totalEquity);
+    const isBalanced = Math.abs(difference) < 0.01; // Allow for small rounding differences
+
+    // Convert to proper BalanceSheetData format
+    const balanceSheetData: BalanceSheetData = {
+      period: `As of ${validatedData.endDate.toLocaleDateString()}`,
+      asOfDate: validatedData.endDate.toISOString(),
       assets: {
-        currentAssets,
-        totalCurrentAssets,
-        nonCurrentAssets,
-        totalNonCurrentAssets,
+        currentAssets: assets.current.map(item => ({
+          name: item.name,
+          amount: item.amount,
+          reconciliation: {
+            totalAmount: item.amount,
+            matchedAmount: 0,
+            unmatchedAmount: 0,
+            pendingReviewAmount: 0,
+            matchedPercentage: 0,
+            unmatchedCount: 0,
+            matchedCount: 0,
+            pendingReviewCount: 0,
+          }
+        })),
+        totalCurrentAssets: assets.current.reduce((sum, item) => sum + item.amount, 0),
+        nonCurrentAssets: assets.nonCurrent.map(item => ({
+          name: item.name,
+          amount: item.amount,
+          reconciliation: {
+            totalAmount: item.amount,
+            matchedAmount: 0,
+            unmatchedAmount: 0,
+            pendingReviewAmount: 0,
+            matchedPercentage: 0,
+            unmatchedCount: 0,
+            matchedCount: 0,
+            pendingReviewCount: 0,
+          }
+        })),
+        totalNonCurrentAssets: assets.nonCurrent.reduce((sum, item) => sum + item.amount, 0),
         totalAssets,
-        assetsReconciliation,
+        assetsReconciliation: {
+          totalAmount: totalAssets,
+          matchedAmount: 0,
+          unmatchedAmount: 0,
+          pendingReviewAmount: 0,
+          matchedPercentage: 0,
+          unmatchedCount: 0,
+          matchedCount: 0,
+          pendingReviewCount: 0,
+        }
       },
       liabilities: {
-        currentLiabilities,
-        totalCurrentLiabilities,
-        nonCurrentLiabilities,
-        totalNonCurrentLiabilities,
+        currentLiabilities: liabilities.current.map(item => ({
+          name: item.name,
+          amount: item.amount,
+          reconciliation: {
+            totalAmount: item.amount,
+            matchedAmount: 0,
+            unmatchedAmount: 0,
+            pendingReviewAmount: 0,
+            matchedPercentage: 0,
+            unmatchedCount: 0,
+            matchedCount: 0,
+            pendingReviewCount: 0,
+          }
+        })),
+        totalCurrentLiabilities: liabilities.current.reduce((sum, item) => sum + item.amount, 0),
+        nonCurrentLiabilities: liabilities.nonCurrent.map(item => ({
+          name: item.name,
+          amount: item.amount,
+          reconciliation: {
+            totalAmount: item.amount,
+            matchedAmount: 0,
+            unmatchedAmount: 0,
+            pendingReviewAmount: 0,
+            matchedPercentage: 0,
+            unmatchedCount: 0,
+            matchedCount: 0,
+            pendingReviewCount: 0,
+          }
+        })),
+        totalNonCurrentLiabilities: liabilities.nonCurrent.reduce((sum, item) => sum + item.amount, 0),
         totalLiabilities,
-        liabilitiesReconciliation,
+        liabilitiesReconciliation: {
+          totalAmount: totalLiabilities,
+          matchedAmount: 0,
+          unmatchedAmount: 0,
+          pendingReviewAmount: 0,
+          matchedPercentage: 0,
+          unmatchedCount: 0,
+          matchedCount: 0,
+          pendingReviewCount: 0,
+        }
       },
       equity: {
-        equityItems,
+        equityItems: [
+          ...equity.items.map(item => ({
+            name: item.name,
+            amount: item.amount,
+            reconciliation: {
+              totalAmount: item.amount,
+              matchedAmount: 0,
+              unmatchedAmount: 0,
+              pendingReviewAmount: 0,
+              matchedPercentage: 0,
+              unmatchedCount: 0,
+              matchedCount: 0,
+              pendingReviewCount: 0,
+            }
+          })),
+          {
+            name: "Retained Earnings",
+            amount: equity.retainedEarnings,
+            reconciliation: {
+              totalAmount: equity.retainedEarnings,
+              matchedAmount: 0,
+              unmatchedAmount: 0,
+              pendingReviewAmount: 0,
+              matchedPercentage: 0,
+              unmatchedCount: 0,
+              matchedCount: 0,
+              pendingReviewCount: 0,
+            }
+          },
+          {
+            name: "Current Year Earnings",
+            amount: equity.currentYearEarnings,
+            reconciliation: {
+              totalAmount: equity.currentYearEarnings,
+              matchedAmount: 0,
+              unmatchedAmount: 0,
+              pendingReviewAmount: 0,
+              matchedPercentage: 0,
+              unmatchedCount: 0,
+              matchedCount: 0,
+              pendingReviewCount: 0,
+            }
+          }
+        ],
         totalEquity,
-        equityReconciliation,
+        equityReconciliation: {
+          totalAmount: totalEquity,
+          matchedAmount: 0,
+          unmatchedAmount: 0,
+          pendingReviewAmount: 0,
+          matchedPercentage: 0,
+          unmatchedCount: 0,
+          matchedCount: 0,
+          pendingReviewCount: 0,
+        }
       },
-      overallReconciliation,
+      overallReconciliation: {
+        totalAmount: totalAssets,
+        matchedAmount: 0,
+        unmatchedAmount: 0,
+        pendingReviewAmount: 0,
+        matchedPercentage: 0,
+        unmatchedCount: 0,
+        matchedCount: 0,
+        pendingReviewCount: 0,
+      },
       balanceCheck: {
         assetsTotal: totalAssets,
-        liabilitiesAndEquityTotal,
+        liabilitiesAndEquityTotal: totalLiabilities + totalEquity,
         isBalanced,
         difference,
-      },
+      }
     };
 
     // Save report if requested
-    let reportId: string | undefined;
     if (saveReport) {
-      const saveResult = await saveGeneratedReport({
-        type: "BALANCE_SHEET",
-        title: `Balance Sheet - ${asOfDate}`,
-        data: reportData,
-        parameters: {
-          type: data.type,
-          startDate: data.startDate,
-          endDate: data.endDate,
-          period: data.period,
+      const reportData = await db.reportData.create({
+        data: {
+          businessId: business.id,
+          type: "BALANCE_SHEET",
+          title: `Balance Sheet - ${validatedData.endDate.toLocaleDateString()}`,
+          data: balanceSheetData as unknown as object,
+          parameters: {
+            startDate: validatedData.startDate,
+            endDate: validatedData.endDate,
+          },
+          period: `As of ${validatedData.endDate.toLocaleDateString()}`,
+          startDate: validatedData.startDate,
+          endDate: validatedData.endDate,
+          generatedBy: session.user.id,
         },
-        period: data.period || "custom",
-        startDate: validatedData.startDate,
-        endDate: validatedData.endDate,
       });
 
-      if (saveResult.success) {
-        reportId = saveResult.reportId;
-      }
+      return { success: true, data: balanceSheetData, reportId: reportData.id };
     }
 
-    return { success: true, data: reportData, reportId };
+    return { success: true, data: balanceSheetData };
   } catch (error) {
-    console.error("Error generating balance sheet report:", error);
-    if (error instanceof z.ZodError) {
-      return { success: false, error: "Invalid request data" };
-    }
-    return { success: false, error: "Failed to generate balance sheet report" };
+    console.error("Error generating balance sheet:", error);
+    return { success: false, error: "Failed to generate balance sheet" };
   }
 }
 
@@ -1166,4 +1202,90 @@ function calculateCashFlowSection(
   }
 
   return result;
+}
+
+/**
+ * Get account balance history for debugging
+ */
+export async function getAccountBalanceDetails(accountId: string, endDate: Date): Promise<{
+  success: boolean;
+  account?: {
+    id: string;
+    name: string;
+    accountCode: string;
+    accountType: string;
+  };
+  entries?: Array<{
+    date: Date;
+    description: string;
+    debit: number;
+    credit: number;
+    change: number;
+    balance: number;
+  }>;
+  finalBalance?: number;
+  error?: string;
+}> {
+  try {
+    const journalEntries = await db.journalEntry.findMany({
+      where: {
+        accountId,
+        transaction: {
+          date: {
+            lte: endDate,
+          },
+        },
+      },
+      include: {
+        transaction: true,
+        account: true,
+      },
+      orderBy: {
+        transaction: {
+          date: 'asc',
+        },
+      },
+    });
+
+    let runningBalance = 0;
+    const entries = journalEntries.map(entry => {
+      const debit = entry.debitAmount || 0;
+      const credit = entry.creditAmount || 0;
+      
+      // Calculate balance change based on account type
+      let change = 0;
+      switch (entry.account.accountType) {
+        case "ASSET":
+        case "EXPENSE":
+          change = debit - credit;
+          break;
+        case "LIABILITY":
+        case "EQUITY":
+        case "INCOME":
+          change = credit - debit;
+          break;
+      }
+      
+      runningBalance += change;
+      
+      return {
+        date: entry.transaction.date,
+        description: entry.transaction.description || "",
+        debit,
+        credit,
+        change,
+        balance: runningBalance,
+      };
+    });
+
+    return {
+      success: true,
+      account: journalEntries[0]?.account,
+      entries,
+      finalBalance: runningBalance,
+    };
+  } catch (error) {
+    console.error("Error getting account balance details:", error);
+    return { success: false, error: "Failed to get account details" };
+  }
 }

@@ -1,4 +1,5 @@
 import { DashboardNav } from "@/components/dashboard/layout/nav";
+import { BusinessProvider } from "@/lib/contexts/business-context";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
@@ -32,11 +33,13 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <aside className="w-[260px] lg:w-[280px] border-r bg-background h-screen overflow-y-auto">
-        <DashboardNav user={session.user} />
-      </aside>
-      <main className="flex-1 overflow-y-auto p-6">{children}</main>
-    </div>
+    <BusinessProvider>
+      <div className="flex h-screen overflow-hidden">
+        <aside className="w-[260px] lg:w-[280px] border-r bg-background h-screen overflow-y-auto">
+          <DashboardNav user={session.user} />
+        </aside>
+        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+      </div>
+    </BusinessProvider>
   );
 }

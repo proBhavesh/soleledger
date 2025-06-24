@@ -29,6 +29,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { BusinessSelector } from "./business-selector";
 
 const menuGroups = [
   {
@@ -156,22 +157,27 @@ export function DashboardNav({ user }: DashboardNavProps) {
   return (
     <div className="flex h-full flex-col bg-gradient-to-b from-gray-50/50 to-white dark:from-gray-950 dark:to-gray-900">
       {/* Logo Section */}
-      <div className="flex h-16 items-center border-b px-4 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm">
+      <div className="flex h-12 items-center border-b px-3 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm">
         <Link
           href="/dashboard"
           className="flex items-center gap-2 font-semibold group"
         >
-          <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg shadow-md group-hover:shadow-lg transition-all">
-            <Package2 className="h-5 w-5 text-white" />
+          <div className="p-1.5 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg shadow-md group-hover:shadow-lg transition-all">
+            <Package2 className="h-4 w-4 text-white" />
           </div>
-          <span className="text-lg font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">SoleLedger</span>
+          <span className="text-base font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">SoleLedger</span>
         </Link>
+      </div>
+
+      {/* Business Selector */}
+      <div className="px-3 py-2 border-b bg-white/30 dark:bg-gray-900/30">
+        <BusinessSelector />
       </div>
 
       {/* Navigation Menu */}
       <Card className="flex-1 border-0 shadow-none rounded-none">
-        <CardContent className="p-4">
-          <nav className="space-y-6">
+        <CardContent className="p-3">
+          <nav className="space-y-4">
             {menuGroups.map((group) => {
               // Check if any items in this group should be shown to the current user
               const filteredItems = group.items.filter((item) =>
@@ -182,8 +188,8 @@ export function DashboardNav({ user }: DashboardNavProps) {
               if (filteredItems.length === 0) return null;
 
               return (
-                <div key={group.title} className="space-y-2">
-                  <h3 className="text-xs font-semibold text-muted-foreground tracking-wider uppercase px-2">
+                <div key={group.title} className="space-y-1">
+                  <h3 className="text-xs font-semibold text-muted-foreground tracking-wider uppercase px-1">
                     {group.title}
                   </h3>
                   <div className="space-y-1">
@@ -193,7 +199,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
                         <Link key={item.href} href={item.href}>
                           <div
                             className={cn(
-                              "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 cursor-pointer group",
+                              "flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-200 cursor-pointer group",
                               isActive
                                 ? "bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 shadow-sm"
                                 : "hover:bg-gray-100 dark:hover:bg-gray-800/50"
@@ -201,7 +207,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
                           >
                             <div
                               className={cn(
-                                "p-2 rounded-lg transition-all duration-200",
+                                "p-1.5 rounded-lg transition-all duration-200",
                                 isActive
                                   ? item.bgColor + " shadow-sm"
                                   : "bg-gray-100 dark:bg-gray-800 group-hover:" + item.bgColor
@@ -209,7 +215,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
                             >
                               <item.icon
                                 className={cn(
-                                  "h-4 w-4 transition-colors",
+                                  "h-3.5 w-3.5 transition-colors",
                                   isActive
                                     ? item.color
                                     : "text-gray-600 dark:text-gray-400 group-hover:" + item.color
@@ -231,7 +237,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
                       );
                     })}
                   </div>
-                  <Separator className="mt-2" />
+                  <Separator className="mt-1" />
                 </div>
               );
             })}
@@ -240,25 +246,25 @@ export function DashboardNav({ user }: DashboardNavProps) {
       </Card>
 
       {/* User Profile Section */}
-      <div className="border-t p-4 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm">
+      <div className="border-t p-3 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="w-full justify-start p-3 h-auto hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-all"
+              className="w-full justify-start p-2 h-auto hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-all"
             >
-              <div className="flex items-center gap-3 w-full">
-                <Avatar className="h-10 w-10 ring-2 ring-indigo-100 dark:ring-indigo-900">
+              <div className="flex items-center gap-2 w-full">
+                <Avatar className="h-8 w-8 ring-2 ring-indigo-100 dark:ring-indigo-900">
                   <AvatarImage src={user?.image || ""} alt={user?.name || ""} />
                   <AvatarFallback className="text-sm bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-semibold">
                     {user?.name ? getInitials(user.name) : "U"}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col items-start text-sm">
-                  <span className="font-semibold truncate max-w-[150px] text-gray-900 dark:text-gray-100">
+                  <span className="font-semibold truncate max-w-[140px] text-gray-900 dark:text-gray-100">
                     {user?.name || "User"}
                   </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[150px]">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[140px]">
                     {user?.email}
                   </span>
                 </div>

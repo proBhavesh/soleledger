@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SoleLedger is an automated bookkeeping SaaS platform built with Next.js 15 (App Router), designed to simplify financial management for small businesses and sole proprietors. The application integrates with Plaid for banking, Stripe for payments, and uses AI (Claude) for document processing.
+SoleLedger is an automated bookkeeping SaaS platform built with Next.js 15 (App Router), designed to simplify financial management for small businesses and accountants. The application supports multi-client management, integrates with Plaid for banking, Stripe for payments, uses AI (Claude) for document processing, and implements proper double-entry bookkeeping.
 
 ## Development Commands
 
@@ -36,12 +36,13 @@ pnpm dlx shadcn@latest add [component-name]
 ### Tech Stack
 - **Framework**: Next.js 15.3.1 with App Router
 - **Language**: TypeScript (strict mode)
-- **Database**: PostgreSQL with Prisma ORM
+- **Database**: Supabase PostgreSQL with Prisma ORM
+- **Storage**: Supabase Storage (S3-compatible) for documents
 - **Authentication**: NextAuth.js with Google OAuth & credentials
 - **Payments**: Stripe subscriptions
 - **Banking**: Plaid API integration
 - **Document AI**: Claude API for receipt/invoice processing
-- **Storage**: AWS S3 for documents
+- **Bookkeeping**: Double-entry bookkeeping with journal entries
 - **UI**: Shadcn UI (Radix UI + Tailwind CSS)
 - **Currency**: CAD (Canadian Dollar) throughout
 
@@ -62,23 +63,39 @@ pnpm dlx shadcn@latest add [component-name]
 
 4. **Authentication Flow**: 
    - Check session with `auth()` helper
-   - User → Business relationship (one-to-many)
+   - User → Business relationship (many-to-many via BusinessMember)
    - Role-based access (BUSINESS_OWNER, ACCOUNTANT)
+   - Business context switching for accountants
+   - Granular permissions (VIEW_ONLY, FULL_MANAGEMENT, FINANCIAL_ONLY, DOCUMENTS_ONLY)
 
 5. **File Organization**:
    ```
    /app/(auth)           # Auth pages (login, register)
-   /app/(dashboard)      # Protected dashboard routes
+   /app/(dashboard)      # Protected dashboard routes  
    /app/api             # API routes (auth, webhooks)
    /components          # Reusable components
    /lib/actions         # Server actions
    /lib/types          # TypeScript types
+   /lib/contexts        # React contexts (business context)
+   /lib/storage         # Supabase storage utilities
    ```
 
 ## Critical Business Logic
 
+### Double-Entry Bookkeeping
+- **Journal Entries**: Every transaction creates balanced debit/credit entries
+- **Chart of Accounts**: Structured account hierarchy (ASSET, LIABILITY, EQUITY, INCOME, EXPENSE)
+- **Balance Sheet**: Always balances due to proper double-entry
+- **Transaction Types**: Simple (INCOME/EXPENSE/TRANSFER) or custom journal entries
+
+### Multi-Client Management
+- **Accountants**: Can manage multiple client businesses
+- **Business Context**: Switch between client businesses via BusinessSelector
+- **Access Levels**: Granular permissions per client relationship
+- **Client Invitations**: Email-based invitation system
+
 ### Document Processing Flow
-1. User uploads receipt/invoice → S3 storage
+1. User uploads receipt/invoice → Supabase Storage
 2. AI extracts data (vendor, amount, date, tax)
 3. System suggests transaction matches
 4. User confirms or manually matches
@@ -98,9 +115,9 @@ pnpm dlx shadcn@latest add [component-name]
 ## Environment Variables Required
 
 ```bash
-# Database
-DATABASE_URL=             # PostgreSQL connection
-DIRECT_URL=              # Direct PostgreSQL connection
+# Database (Supabase PostgreSQL)
+DATABASE_URL=             # Supabase PostgreSQL pooler connection
+DIRECT_URL=              # Supabase direct PostgreSQL connection
 
 # Authentication
 NEXTAUTH_URL=
@@ -117,11 +134,12 @@ PLAID_SECRET=
 PLAID_ENV=               # sandbox/development/production
 ANTHROPIC_API_KEY=       # For Claude AI
 
-# AWS (Document Storage)
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_REGION=
-AWS_S3_BUCKET_NAME=
+# Supabase Storage (S3-compatible)
+STORAGE_ACCESS_KEY_ID=        # S3-compatible access key
+STORAGE_ACCESS_KEY_SECRET=    # S3-compatible secret key
+STORAGE_ENDPOINT=             # Supabase storage S3 endpoint
+STORAGE_REGION=               # Storage region
+STORAGE_BUCKET_NAME=          # Storage bucket name (e.g., "receipts")
 ```
 
 ## Development Guidelines
@@ -175,10 +193,27 @@ try {
 - Matching algorithm considers amount, date, vendor
 - UI components in `/components/dashboard/reconciliation/`
 
+### Working with Double-Entry Bookkeeping
+- Transaction creation in `/lib/actions/transaction-journal-actions.ts`
+- Journal entries automatically created for each transaction
+- Balance sheet generation in `/lib/actions/report-actions.ts`
+- Chart of accounts management in `/lib/actions/chart-of-accounts-actions.ts`
+
+### Working with Multi-Client System
+- Business context provider in `/lib/contexts/business-context.tsx`
+- Client management in `/lib/actions/client-management-actions.ts`
+- Member management in `/lib/actions/member-management-actions.ts`
+- Business switching via BusinessSelector component
+
 ### Working with Plaid
 - Client initialized in `/lib/plaid/client.ts`
 - Webhook handler at `/app/api/plaid/webhook/route.ts`
 - Actions organized in `/lib/actions/plaid/`
+
+### Working with Supabase Storage
+- Storage utilities in `/lib/storage/supabase-storage.ts`
+- S3-compatible API for file operations
+- Presigned URLs for secure uploads
 
 ## Testing Approach
 - Manual testing in development
