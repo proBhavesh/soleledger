@@ -8,6 +8,7 @@ export interface Transaction {
   type: "INCOME" | "EXPENSE" | "TRANSFER";
   date: string | Date;
   category: string;
+  categoryId?: string | null;
   // Enhanced fields from Plaid
   merchantName?: string | null;
   merchantLogo?: string | null;
@@ -21,6 +22,9 @@ export interface Transaction {
   subcategory?: string | null;
   accountId?: string | null;
   accountName?: string | null;
+  notes?: string | null;
+  reconciled?: boolean;
+  reconciledAt?: string | Date | null;
 }
 
 // Transaction filter values for filtering transactions

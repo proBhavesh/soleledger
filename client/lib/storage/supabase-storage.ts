@@ -89,3 +89,41 @@ export function validateFileSize(size: number): boolean {
   const maxSize = 10 * 1024 * 1024; // 10MB
   return size <= maxSize;
 }
+
+/**
+ * Upload a file directly to Supabase Storage
+ */
+export async function uploadFile(
+  file: File,
+  fileKey: string,
+  bucket: string = "receipts"
+): Promise<{ success: boolean; fileUrl?: string; error?: string }> {
+  try {
+    // Convert File to Buffer
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const command = new PutObjectCommand({
+      Bucket: bucket,
+      Key: fileKey,
+      Body: buffer,
+      ContentType: file.type,
+    });
+
+    await s3Client.send(command);
+
+    // Get the public URL
+    const fileUrl = getS3FileUrl(bucket, fileKey);
+
+    return {
+      success: true,
+      fileUrl,
+    };
+  } catch (error) {
+    console.error("Error uploading file:", error);
+    return {
+      success: false,
+      error: "Failed to upload file",
+    };
+  }
+}

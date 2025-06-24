@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import {
 	Table,
 	TableBody,
@@ -21,18 +24,32 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { TransactionListProps } from "@/lib/types/transactions";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import type { TransactionListProps, Transaction } from "@/lib/types/transactions";
+import type { TransactionDropdownMenuProps } from "@/lib/types/transaction-operations";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { getCategoryIcon } from "@/lib/utils/transaction-helpers";
+import { toast } from "sonner";
+import {
+	deleteTransaction,
+	toggleTransactionReconciliation,
+} from "@/lib/actions/transaction-actions";
+import { EditTransactionDialog } from "./edit-transaction-dialog";
+import { CategorizeTransactionDialog } from "./categorize-transaction-dialog";
 import {
 	FiEdit2,
 	FiTag,
 	FiCheckCircle,
-	FiFileText,
 	FiTrash2,
-	FiCreditCard,
-	FiHome,
-	FiShoppingBag,
-	FiCoffee,
 	FiSliders,
 } from "react-icons/fi";
 
@@ -84,26 +101,40 @@ function NoTransactionsFound() {
 }
 
 // Dropdown menu for transaction actions
-function TransactionDropdownMenu() {
+function TransactionDropdownMenu({
+	transaction,
+	onEdit,
+	onCategorize,
+	onReconcile,
+	onDelete,
+}: TransactionDropdownMenuProps) {
 	return (
 		<DropdownMenuContent align="end" className="w-[200px]">
-			<DropdownMenuItem className="cursor-pointer flex items-center gap-2 hover:bg-accent">
+			<DropdownMenuItem 
+				onClick={onEdit}
+				className="cursor-pointer flex items-center gap-2 hover:bg-accent"
+			>
 				<FiEdit2 className="h-4 w-4 text-muted-foreground" />
 				<span>Edit</span>
 			</DropdownMenuItem>
-			<DropdownMenuItem className="cursor-pointer flex items-center gap-2 hover:bg-accent">
+			<DropdownMenuItem 
+				onClick={onCategorize}
+				className="cursor-pointer flex items-center gap-2 hover:bg-accent"
+			>
 				<FiTag className="h-4 w-4 text-muted-foreground" />
 				<span>Categorize</span>
 			</DropdownMenuItem>
-			<DropdownMenuItem className="cursor-pointer flex items-center gap-2 hover:bg-accent">
+			<DropdownMenuItem 
+				onClick={onReconcile}
+				className="cursor-pointer flex items-center gap-2 hover:bg-accent"
+			>
 				<FiCheckCircle className="h-4 w-4 text-muted-foreground" />
-				<span>Mark as reconciled</span>
+				<span>{transaction.reconciled ? "Mark as unreconciled" : "Mark as reconciled"}</span>
 			</DropdownMenuItem>
-			<DropdownMenuItem className="cursor-pointer flex items-center gap-2 hover:bg-accent">
-				<FiFileText className="h-4 w-4 text-muted-foreground" />
-				<span>Add receipt</span>
-			</DropdownMenuItem>
-			<DropdownMenuItem className="text-destructive cursor-pointer flex items-center gap-2 hover:bg-destructive/10">
+			<DropdownMenuItem 
+				onClick={onDelete}
+				className="text-destructive cursor-pointer flex items-center gap-2 hover:bg-destructive/10"
+			>
 				<FiTrash2 className="h-4 w-4" />
 				<span>Delete</span>
 			</DropdownMenuItem>
@@ -114,34 +145,58 @@ function TransactionDropdownMenu() {
 export function TransactionList({
 	transactions,
 	isLoading,
+	onRefresh,
 }: TransactionListProps) {
-	// Get category icon based on category name
-	const getCategoryIcon = (category: string) => {
-		const normalizedCategory = category.toLowerCase();
-		if (
-			normalizedCategory.includes("shopping") ||
-			normalizedCategory.includes("merchandise")
-		) {
-			return <FiShoppingBag className="h-4 w-4" />;
-		} else if (
-			normalizedCategory.includes("food") ||
-			normalizedCategory.includes("restaurant")
-		) {
-			return <FiShoppingBag className="h-4 w-4" />;
-		} else if (
-			normalizedCategory.includes("home") ||
-			normalizedCategory.includes("rent")
-		) {
-			return <FiHome className="h-4 w-4" />;
-		} else if (
-			normalizedCategory.includes("coffee") ||
-			normalizedCategory.includes("cafe")
-		) {
-			return <FiCoffee className="h-4 w-4" />;
-		} else {
-			return <FiCreditCard className="h-4 w-4" />;
+	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+	const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+	const [editDialogOpen, setEditDialogOpen] = useState(false);
+	const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+	const [isDeleting, setIsDeleting] = useState(false);
+
+	// Handle delete transaction
+	const handleDelete = async () => {
+		if (!selectedTransaction) return;
+		
+		setIsDeleting(true);
+		try {
+			const result = await deleteTransaction(selectedTransaction.id);
+			if (result.success && result.data) {
+				toast.success(result.data.message);
+				setDeleteDialogOpen(false);
+				onRefresh?.();
+			} else {
+				toast.error(result.error || "Failed to delete transaction");
+			}
+		} catch {
+			toast.error("Failed to delete transaction");
+		} finally {
+			setIsDeleting(false);
 		}
 	};
+
+	// Handle reconciliation toggle
+	const handleReconcile = async (transaction: Transaction) => {
+		try {
+			const result = await toggleTransactionReconciliation({
+				transactionId: transaction.id,
+				isReconciled: !transaction.reconciled,
+			});
+			
+			if (result.success && result.data) {
+				toast.success(
+					transaction.reconciled 
+						? "Transaction marked as unreconciled" 
+						: "Transaction marked as reconciled"
+				);
+				onRefresh?.();
+			} else {
+				toast.error(result.error || "Failed to update reconciliation status");
+			}
+		} catch {
+			toast.error("Failed to update reconciliation status");
+		}
+	};
+
 
 	return (
 		<div className="rounded-lg border bg-card shadow-sm">
@@ -206,9 +261,10 @@ export function TransactionList({
 														variant="outline"
 														className="flex items-center gap-1.5 px-2 py-1 text-xs md:text-sm font-medium bg-muted/40 border-muted-foreground/20"
 													>
-														{getCategoryIcon(
-															transaction.category
-														)}
+														{(() => {
+															const Icon = getCategoryIcon(transaction.category);
+															return <Icon className="h-4 w-4" />;
+														})()}
 														<span>
 															{
 																transaction.category
@@ -256,7 +312,22 @@ export function TransactionList({
 													<FiSliders className="h-4 w-4 text-muted-foreground" />
 												</Button>
 											</DropdownMenuTrigger>
-											<TransactionDropdownMenu />
+											<TransactionDropdownMenu 
+												transaction={transaction}
+												onEdit={() => {
+													setSelectedTransaction(transaction);
+													setEditDialogOpen(true);
+												}}
+												onCategorize={() => {
+													setSelectedTransaction(transaction);
+													setCategoryDialogOpen(true);
+												}}
+												onReconcile={() => handleReconcile(transaction)}
+												onDelete={() => {
+													setSelectedTransaction(transaction);
+													setDeleteDialogOpen(true);
+												}}
+											/>
 										</DropdownMenu>
 									</TableCell>
 								</TableRow>
@@ -265,6 +336,45 @@ export function TransactionList({
 					)}
 				</TableBody>
 			</Table>
+
+			{/* Delete Confirmation Dialog */}
+			<AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete Transaction</AlertDialogTitle>
+						<AlertDialogDescription>
+							Are you sure you want to delete this transaction? This action cannot be undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={handleDelete}
+							disabled={isDeleting}
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+						>
+							{isDeleting ? "Deleting..." : "Delete"}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+
+			{/* Edit Transaction Dialog */}
+			<EditTransactionDialog
+				transaction={selectedTransaction}
+				open={editDialogOpen}
+				onOpenChange={setEditDialogOpen}
+				onSuccess={onRefresh}
+			/>
+
+			{/* Categorize Transaction Dialog */}
+			<CategorizeTransactionDialog
+				transaction={selectedTransaction}
+				open={categoryDialogOpen}
+				onOpenChange={setCategoryDialogOpen}
+				onSuccess={onRefresh}
+			/>
+
 		</div>
 	);
 }

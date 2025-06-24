@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { Transaction, TransactionFilterValues } from "./dashboard";
+import { TransactionFilterValues, Transaction } from "./dashboard";
+
+// Re-export Transaction from dashboard types
+export type { Transaction } from "./dashboard";
 
 // =======================================================
 // Transaction Page Types
@@ -104,4 +107,5 @@ export interface PaginationProps {
 export interface TransactionListProps {
   transactions: Transaction[];
   isLoading: boolean;
+  onRefresh?: () => void;
 }
