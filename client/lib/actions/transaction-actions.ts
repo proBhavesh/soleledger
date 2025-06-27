@@ -4,6 +4,12 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { transformPrismaTransaction } from "@/lib/utils/transaction-transformers";
+import { 
+  buildTransactionPermissionWhere, 
+  buildUserBusinessWhere,
+  getPermissionErrorMessage 
+} from "@/lib/utils/permission-helpers";
+import { logger } from "@/lib/utils/logger";
 import {
   updateTransactionSchema,
   updateCategorySchema,
@@ -25,6 +31,7 @@ export async function updateTransaction(data: UpdateTransactionData): Promise<Up
   try {
     const session = await auth();
     if (!session?.user?.id) {
+      logger.warn("Unauthorized transaction update attempt");
       return { success: false, error: "Unauthorized" };
     }
 
@@ -32,23 +39,16 @@ export async function updateTransaction(data: UpdateTransactionData): Promise<Up
 
     // Verify transaction belongs to user's business
     const transaction = await db.transaction.findFirst({
-      where: {
-        id: validatedData.transactionId,
-        business: {
-          members: {
-            some: {
-              userId: session.user.id,
-              accessLevel: {
-                in: ["FULL_MANAGEMENT", "FINANCIAL_ONLY"],
-              },
-            },
-          },
-        },
-      },
+      where: buildTransactionPermissionWhere(
+        validatedData.transactionId,
+        session.user.id,
+        false
+      ),
     });
 
     if (!transaction) {
-      return { success: false, error: "Transaction not found or access denied" };
+      logger.warn(`Transaction ${validatedData.transactionId} not found or access denied for user ${session.user.id}`);
+      return { success: false, error: getPermissionErrorMessage("update") };
     }
 
     // Update transaction
@@ -67,15 +67,19 @@ export async function updateTransaction(data: UpdateTransactionData): Promise<Up
       },
     });
 
+    logger.info(`Transaction ${validatedData.transactionId} updated by user ${session.user.id}`);
+
     // Transform to match Transaction type
     const transformedTransaction = transformPrismaTransaction(updated);
     return { success: true, data: transformedTransaction };
   } catch (error) {
-    console.error("Error updating transaction:", error);
     if (error instanceof z.ZodError) {
-      return { success: false, error: "Invalid transaction data" };
+      logger.warn("Invalid transaction data:", error.errors);
+      return { success: false, error: "Invalid transaction data provided" };
     }
-    return { success: false, error: "Failed to update transaction" };
+    
+    logger.error("Error updating transaction:", error);
+    return { success: false, error: "An error occurred while updating the transaction" };
   }
 }
 
@@ -86,29 +90,25 @@ export async function deleteTransaction(transactionId: string): Promise<DeleteTr
   try {
     const session = await auth();
     if (!session?.user?.id) {
+      logger.warn("Unauthorized transaction delete attempt");
       return { success: false, error: "Unauthorized" };
     }
 
     // Verify transaction belongs to user's business with full access
     const transaction = await db.transaction.findFirst({
-      where: {
-        id: transactionId,
-        business: {
-          members: {
-            some: {
-              userId: session.user.id,
-              accessLevel: "FULL_MANAGEMENT",
-            },
-          },
-        },
-      },
+      where: buildTransactionPermissionWhere(
+        transactionId,
+        session.user.id,
+        true // Require full access for deletion
+      ),
       include: {
         journalEntries: true,
       },
     });
 
     if (!transaction) {
-      return { success: false, error: "Transaction not found or access denied" };
+      logger.warn(`Transaction ${transactionId} not found or access denied for deletion by user ${session.user.id}`);
+      return { success: false, error: getPermissionErrorMessage("delete") };
     }
 
     // Delete in a transaction to ensure data consistency
@@ -126,10 +126,11 @@ export async function deleteTransaction(transactionId: string): Promise<DeleteTr
       });
     });
 
+    logger.info(`Transaction ${transactionId} deleted by user ${session.user.id}`);
     return { success: true, data: { message: "Transaction deleted successfully" } };
   } catch (error) {
-    console.error("Error deleting transaction:", error);
-    return { success: false, error: "Failed to delete transaction" };
+    logger.error("Error deleting transaction:", error);
+    return { success: false, error: "An error occurred while deleting the transaction" };
   }
 }
 
@@ -140,65 +141,75 @@ export async function updateTransactionCategory(data: UpdateCategoryData): Promi
   try {
     const session = await auth();
     if (!session?.user?.id) {
+      logger.warn("Unauthorized category update attempt");
       return { success: false, error: "Unauthorized" };
     }
 
     const validatedData = updateCategorySchema.parse(data);
 
-    // Verify transaction and category belong to user's business
-    const transaction = await db.transaction.findFirst({
-      where: {
-        id: validatedData.transactionId,
-        business: {
-          members: {
-            some: {
-              userId: session.user.id,
-              accessLevel: {
-                in: ["FULL_MANAGEMENT", "FINANCIAL_ONLY"],
-              },
-            },
-          },
+    // Use transaction to ensure consistency
+    const result = await db.$transaction(async (tx) => {
+      // Verify transaction belongs to user's business
+      const transaction = await tx.transaction.findFirst({
+        where: buildTransactionPermissionWhere(
+          validatedData.transactionId,
+          session.user.id,
+          false
+        ),
+      });
+
+      if (!transaction) {
+        throw new Error("PERMISSION_DENIED");
+      }
+
+      // Verify category exists and belongs to the same business
+      const category = await tx.category.findFirst({
+        where: {
+          id: validatedData.categoryId,
+          businessId: transaction.businessId,
         },
-      },
+      });
+
+      if (!category) {
+        throw new Error("CATEGORY_NOT_FOUND");
+      }
+
+      // Update transaction category
+      return await tx.transaction.update({
+        where: { id: validatedData.transactionId },
+        data: {
+          categoryId: validatedData.categoryId,
+          updatedAt: new Date(),
+        },
+        include: {
+          category: true,
+          bankAccount: true,
+        },
+      });
     });
 
-    if (!transaction) {
-      return { success: false, error: "Transaction not found or access denied" };
-    }
-
-    // Verify category exists and belongs to the same business
-    const category = await db.category.findFirst({
-      where: {
-        id: validatedData.categoryId,
-        businessId: transaction.businessId,
-      },
-    });
-
-    if (!category) {
-      return { success: false, error: "Category not found" };
-    }
-
-    // Update transaction category
-    const updated = await db.transaction.update({
-      where: { id: validatedData.transactionId },
-      data: {
-        categoryId: validatedData.categoryId,
-        updatedAt: new Date(),
-      },
-      include: {
-        category: true,
-        bankAccount: true,
-      },
-    });
-
-    const transformedTransaction = transformPrismaTransaction(updated);
+    logger.info(`Transaction ${validatedData.transactionId} category updated to ${validatedData.categoryId} by user ${session.user.id}`);
+    
+    const transformedTransaction = transformPrismaTransaction(result);
     return { success: true, data: transformedTransaction };
   } catch (error) {
-    console.error("Error updating transaction category:", error);
     if (error instanceof z.ZodError) {
-      return { success: false, error: "Invalid data" };
+      logger.warn("Invalid category data:", error.errors);
+      return { success: false, error: "Invalid data provided" };
     }
-    return { success: false, error: "Failed to update category" };
+    
+    if (error instanceof Error) {
+      if (error.message === "PERMISSION_DENIED") {
+        logger.warn(`Category update denied for transaction ${data.transactionId}`);
+        return { success: false, error: getPermissionErrorMessage("categorize") };
+      }
+      if (error.message === "CATEGORY_NOT_FOUND") {
+        return { success: false, error: "Category not found or doesn't belong to this business" };
+      }
+    }
+    
+    logger.error("Error updating transaction category:", error);
+    return { success: false, error: "An error occurred while updating the category" };
   }
 }
 
@@ -209,6 +220,7 @@ export async function toggleTransactionReconciliation(data: UpdateReconciliation
   try {
     const session = await auth();
     if (!session?.user?.id) {
+      logger.warn("Unauthorized reconciliation update attempt");
       return { success: false, error: "Unauthorized" };
     }
 
@@ -216,23 +228,16 @@ export async function toggleTransactionReconciliation(data: UpdateReconciliation
 
     // Verify transaction belongs to user's business
     const transaction = await db.transaction.findFirst({
-      where: {
-        id: validatedData.transactionId,
-        business: {
-          members: {
-            some: {
-              userId: session.user.id,
-              accessLevel: {
-                in: ["FULL_MANAGEMENT", "FINANCIAL_ONLY"],
-              },
-            },
-          },
-        },
-      },
+      where: buildTransactionPermissionWhere(
+        validatedData.transactionId,
+        session.user.id,
+        false
+      ),
     });
 
     if (!transaction) {
-      return { success: false, error: "Transaction not found or access denied" };
+      logger.warn(`Reconciliation denied for transaction ${validatedData.transactionId} by user ${session.user.id}`);
+      return { success: false, error: getPermissionErrorMessage("reconcile") };
     }
 
     // Update reconciliation status
@@ -248,49 +253,54 @@ export async function toggleTransactionReconciliation(data: UpdateReconciliation
       },
     });
 
+    logger.info(`Transaction ${validatedData.transactionId} reconciliation set to ${validatedData.isReconciled} by user ${session.user.id}`);
+
     const transformedTransaction = transformPrismaTransaction(updated);
     return { success: true, data: transformedTransaction };
   } catch (error) {
-    console.error("Error updating reconciliation status:", error);
     if (error instanceof z.ZodError) {
-      return { success: false, error: "Invalid data" };
+      logger.warn("Invalid reconciliation data:", error.errors);
+      return { success: false, error: "Invalid data provided" };
     }
-    return { success: false, error: "Failed to update reconciliation status" };
+    
+    logger.error("Error updating reconciliation status:", error);
+    return { success: false, error: "An error occurred while updating reconciliation status" };
   }
 }
 
 
 /**
  * Get categories for a business
+ * 
+ * Note: Categories are relatively static and ideal for caching.
+ * Consider implementing React Query or Next.js unstable_cache for production:
+ * - Client-side: React Query with 5-10 minute stale time
+ * - Server-side: Next.js unstable_cache with revalidation tags
+ * - Invalidate on category create/update/delete operations
  */
 export async function getBusinessCategories(): Promise<GetBusinessCategoriesResponse> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
+      logger.warn("Unauthorized categories fetch attempt");
       return { success: false, error: "Unauthorized" };
     }
 
-    // Get user's current business context
-    const businessMember = await db.businessMember.findFirst({
-      where: {
-        userId: session.user.id,
-      },
-      include: {
-        business: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
+    // Find user's business efficiently with a single query
+    const business = await db.business.findFirst({
+      where: buildUserBusinessWhere(session.user.id),
+      select: { id: true },
     });
 
-    if (!businessMember) {
+    if (!business) {
+      logger.warn(`No business found for user ${session.user.id}`);
       return { success: false, error: "No active business found" };
     }
 
     // Get categories for the business
     const categories = await db.category.findMany({
       where: {
-        businessId: businessMember.businessId,
+        businessId: business.id,
         isActive: true,
       },
       orderBy: [
@@ -300,9 +310,11 @@ export async function getBusinessCategories(): Promise<GetBusinessCategoriesResp
       ],
     });
 
+    logger.debug(`Fetched ${categories.length} categories for business ${business.id}`);
+
     return { success: true, data: { categories } };
   } catch (error) {
-    console.error("Error fetching categories:", error);
-    return { success: false, error: "Failed to fetch categories" };
+    logger.error("Error fetching categories:", error);
+    return { success: false, error: "An error occurred while fetching categories" };
   }
 }

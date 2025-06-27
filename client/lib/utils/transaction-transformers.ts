@@ -2,13 +2,8 @@
  * Transform Prisma transaction to dashboard Transaction type
  */
 
-import type { Transaction as PrismaTransaction, Category, BankAccount } from "@/generated/prisma";
 import type { Transaction } from "@/lib/types/dashboard";
-
-type TransactionWithRelations = PrismaTransaction & {
-  category?: Category | null;
-  bankAccount?: BankAccount | null;
-};
+import type { TransactionWithRelations } from "@/lib/types/transaction-operations";
 
 export function transformPrismaTransaction(
   transaction: TransactionWithRelations

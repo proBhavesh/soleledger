@@ -93,13 +93,29 @@ export async function registerAction(formData: FormData) {
           },
         });
 
-        // Create a default business for the user
-        const business = await db.business.create({
-          data: {
-            name: `${name}'s Business`,
-            ownerId: user.id,
-            industry: "Other", // Default industry
-          },
+        // Create business and member in a transaction to prevent partial data
+        const business = await db.$transaction(async (tx) => {
+          // Create a default business for the user
+          const newBusiness = await tx.business.create({
+            data: {
+              name: `${name}'s Business`,
+              ownerId: user.id,
+              industry: "Other", // Default industry
+            },
+          });
+
+          // Create BusinessMember record for the owner
+          await tx.businessMember.create({
+            data: {
+              businessId: newBusiness.id,
+              userId: user.id,
+              role: "BUSINESS_OWNER",
+              accessLevel: "FULL_MANAGEMENT",
+              joinedAt: new Date(),
+            },
+          });
+
+          return newBusiness;
         });
 
         // Create default Chart of Accounts for the business (async, non-blocking)

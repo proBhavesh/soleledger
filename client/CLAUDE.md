@@ -59,7 +59,10 @@ pnpm dlx shadcn@latest add [component-name]
    }
    ```
 
-3. **Database Access**: Always through Prisma client at `@/lib/db`. Generated types in `/generated/prisma/`.
+3. **Database Access**: 
+   - Always import Prisma client from `@/lib/db` (e.g., `import { db } from "@/lib/db"`)
+   - For Prisma types only, import from `/generated/prisma/` (e.g., `import type { Prisma } from "@/generated/prisma"`)
+   - Never import Prisma from `@prisma/client` directly
 
 4. **Authentication Flow**: 
    - Check session with `auth()` helper

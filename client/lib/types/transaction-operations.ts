@@ -4,6 +4,35 @@
 
 import { z } from "zod";
 import type { Transaction } from "./dashboard";
+import type { Transaction as PrismaTransaction, Category, BankAccount } from "@/generated/prisma";
+
+// =======================================================
+// Permission Types
+// =======================================================
+
+export const PERMISSION_LEVELS = {
+  BUSINESS_OWNER: "BUSINESS_OWNER",
+  ACCOUNTANT: "ACCOUNTANT",
+  FULL_MANAGEMENT: "FULL_MANAGEMENT",
+  FINANCIAL_ONLY: "FINANCIAL_ONLY",
+  VIEW_ONLY: "VIEW_ONLY",
+} as const;
+
+export type PermissionLevel = typeof PERMISSION_LEVELS[keyof typeof PERMISSION_LEVELS];
+
+export interface PermissionCheck {
+  userId: string;
+  requireFullAccess?: boolean;
+}
+
+// =======================================================
+// Database Types
+// =======================================================
+
+export type TransactionWithRelations = PrismaTransaction & {
+  category?: Category | null;
+  bankAccount?: BankAccount | null;
+};
 
 // =======================================================
 // Zod Schemas for Validation
