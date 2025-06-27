@@ -36,6 +36,9 @@ export default async function TransactionsPageWrapper({
     dateFrom: params.from,
     dateTo: params.to,
     accountId: params.accountId,
+    type: params.type,
+    minAmount: params.min,
+    maxAmount: params.max,
   };
 
   // Fetch transactions with enriched data and filters

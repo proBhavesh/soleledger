@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, use, useEffect } from "react";
+import { useState, use, useEffect, useMemo, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TransactionList } from "@/components/dashboard/transactions/transaction-list";
@@ -15,7 +15,7 @@ import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateRange } from "react-day-picker";
-import { format } from "date-fns";
+import { buildFilterObject, formatDateForFilter } from "@/lib/utils/transaction-filters";
 import type { TransactionsPageProps } from "@/lib/types/transactions";
 
 export function TransactionsPage({
@@ -45,6 +45,9 @@ export function TransactionsPage({
     params.accountId || "all"
   );
   const [searchTerm, setSearchTerm] = useState(params.search || "");
+  const [selectedType, setSelectedType] = useState(params.type || "ALL");
+  const [minAmount, setMinAmount] = useState(params.min || "");
+  const [maxAmount, setMaxAmount] = useState(params.max || "");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
     params.from && params.to
       ? {
@@ -85,20 +88,24 @@ export function TransactionsPage({
     router.push(`/dashboard/transactions?${params.toString()}`);
   };
 
+  // Build filters using utility function
+  const buildFilters = useCallback(() => {
+    return buildFilterObject(
+      selectedCategory,
+      searchTerm,
+      dateRange,
+      selectedAccount,
+      selectedType,
+      minAmount,
+      maxAmount
+    );
+  }, [selectedCategory, searchTerm, dateRange, selectedAccount, selectedType, minAmount, maxAmount]);
+
   // Refresh transactions
   const refreshTransactions = async () => {
     setIsLoading(true);
     try {
-      // Build filters object
-      const filters = {
-        category: selectedCategory && selectedCategory !== "all" ? selectedCategory : undefined,
-        search: searchTerm || undefined,
-        dateFrom: dateRange?.from
-          ? format(dateRange.from, "yyyy-MM-dd")
-          : undefined,
-        dateTo: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined,
-        accountId: selectedAccount && selectedAccount !== "all" ? selectedAccount : undefined,
-      };
+      const filters = buildFilters();
 
       const result = await getEnrichedTransactions(
         pageSize,
@@ -112,7 +119,8 @@ export function TransactionsPage({
       } else {
         toast.error(result.error || "Failed to refresh transactions");
       }
-    } catch {
+    } catch (error) {
+      console.error("Error refreshing transactions:", error);
       toast.error("An error occurred while refreshing transactions");
     } finally {
       setIsLoading(false);
@@ -125,16 +133,7 @@ export function TransactionsPage({
     setIsPaginationLoading(true);
 
     try {
-      // Build filters object
-      const filters = {
-        category: selectedCategory && selectedCategory !== "all" ? selectedCategory : undefined,
-        search: searchTerm || undefined,
-        dateFrom: dateRange?.from
-          ? format(dateRange.from, "yyyy-MM-dd")
-          : undefined,
-        dateTo: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined,
-        accountId: selectedAccount && selectedAccount !== "all" ? selectedAccount : undefined,
-      };
+      const filters = buildFilters();
 
       const result = await getEnrichedTransactions(
         pageSize,
@@ -147,7 +146,8 @@ export function TransactionsPage({
       } else {
         toast.error(result.error || "Failed to load transactions");
       }
-    } catch {
+    } catch (error) {
+      console.error("Error loading transactions:", error);
       toast.error("An error occurred while loading transactions");
     } finally {
       setIsPaginationLoading(false);
@@ -165,10 +165,12 @@ export function TransactionsPage({
     fetchPageData(page);
   };
 
-  // Get unique categories for filter dropdown
-  const uniqueCategories = Array.from(
-    new Set(transactions.map((t) => t.category))
-  ).filter(Boolean);
+  // Get unique categories for filter dropdown (memoized for performance)
+  const uniqueCategories = useMemo(() => {
+    return Array.from(
+      new Set(transactions.map((t) => t.category))
+    ).filter(Boolean);
+  }, [transactions]);
 
   // Handle all filters change from TransactionFilters component
   const handleFiltersChange = (filters: TransactionFilterValues) => {
@@ -177,8 +179,8 @@ export function TransactionsPage({
       search: filters.search || null,
       category: filters.category || null,
       accountId: filters.accountId || null,
-      from: filters.dateRange?.from ? format(filters.dateRange.from, "yyyy-MM-dd") : null,
-      to: filters.dateRange?.to ? format(filters.dateRange.to, "yyyy-MM-dd") : null,
+      from: filters.dateRange?.from ? formatDateForFilter(filters.dateRange.from) : null,
+      to: filters.dateRange?.to ? formatDateForFilter(filters.dateRange.to) : null,
       type: filters.type || null,
       min: filters.minAmount ? String(filters.minAmount) : null,
       max: filters.maxAmount ? String(filters.maxAmount) : null,
@@ -188,6 +190,9 @@ export function TransactionsPage({
     setSearchTerm(filters.search || "");
     setSelectedCategory(filters.category || "all");
     setSelectedAccount(filters.accountId || "all");
+    setSelectedType(filters.type || "ALL");
+    setMinAmount(filters.minAmount ? String(filters.minAmount) : "");
+    setMaxAmount(filters.maxAmount ? String(filters.maxAmount) : "");
     
     // Handle DateRange conversion properly
     if (filters.dateRange && filters.dateRange.from) {

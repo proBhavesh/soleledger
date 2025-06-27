@@ -32,6 +32,9 @@ export interface PageProps {
     from?: string;
     to?: string;
     accountId?: string;
+    type?: string;
+    min?: string;
+    max?: string;
   }>;
 }
 
@@ -45,16 +48,40 @@ export interface TransactionFilters {
   dateFrom?: string;
   dateTo?: string;
   accountId?: string;
+  type?: string;
+  minAmount?: string;
+  maxAmount?: string;
 }
 
 // Schema for transaction filters validation
 export const transactionFiltersSchema = z.object({
   category: z.string().optional(),
-  search: z.string().optional(),
-  dateFrom: z.string().optional(),
-  dateTo: z.string().optional(),
+  search: z.string().max(100).optional(),
+  dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format").optional(),
+  dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format").optional(),
   accountId: z.string().optional(),
-});
+  type: z.enum(["INCOME", "EXPENSE", "TRANSFER", "ALL"]).optional(),
+  minAmount: z.string().regex(/^\d*\.?\d{0,2}$/, "Invalid amount format").optional(),
+  maxAmount: z.string().regex(/^\d*\.?\d{0,2}$/, "Invalid amount format").optional(),
+}).refine(
+  (data) => {
+    // Validate date range
+    if (data.dateFrom && data.dateTo) {
+      return new Date(data.dateFrom) <= new Date(data.dateTo);
+    }
+    return true;
+  },
+  { message: "Start date must be before end date", path: ["dateFrom"] }
+).refine(
+  (data) => {
+    // Validate amount range
+    if (data.minAmount && data.maxAmount) {
+      return parseFloat(data.minAmount) <= parseFloat(data.maxAmount);
+    }
+    return true;
+  },
+  { message: "Minimum amount must be less than maximum amount", path: ["minAmount"] }
+);
 
 // =======================================================
 // Response Types

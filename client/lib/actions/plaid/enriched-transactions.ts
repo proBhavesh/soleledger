@@ -4,6 +4,10 @@ import { auth } from "@/lib/auth";
 import { db, Prisma } from "@/lib/db";
 import { Transaction } from "@/lib/types/dashboard";
 import type { TransactionFilters, GetEnrichedTransactionsResponse } from "@/lib/types/transactions";
+import { transactionFiltersSchema } from "@/lib/types/transactions";
+import { buildUserBusinessWhere } from "@/lib/utils/permission-helpers";
+import { logger } from "@/lib/utils/logger";
+import { z } from "zod";
 
 /**
  * Ensures filter params are resolved if they're Promises
@@ -37,23 +41,42 @@ export async function getEnrichedTransactions(
 ): Promise<GetEnrichedTransactionsResponse> {
   const session = await auth();
   if (!session?.user?.id) {
+    logger.warn("Unauthorized transaction fetch attempt");
     return { success: false, error: "Unauthorized" };
   }
 
-  // Ensure filters are resolved if they're Promises
-  const resolvedFilters = await resolveFilters(filters);
+  // Validate limit and offset
+  if (limit < 1 || limit > 100) {
+    return { success: false, error: "Invalid limit. Must be between 1 and 100" };
+  }
+  
+  if (offset < 0) {
+    return { success: false, error: "Invalid offset. Must be non-negative" };
+  }
 
   const userId = session.user.id;
 
   try {
-    // Get active business for the user
+    // Ensure filters are resolved if they're Promises
+    const resolvedFilters = await resolveFilters(filters);
+    
+    // Validate filters if provided
+    let validatedFilters: z.infer<typeof transactionFiltersSchema> | undefined;
+    if (resolvedFilters) {
+      const validation = transactionFiltersSchema.safeParse(resolvedFilters);
+      if (!validation.success) {
+        logger.warn("Invalid transaction filters:", validation.error.errors);
+        return { success: false, error: "Invalid filter parameters" };
+      }
+      validatedFilters = validation.data;
+    }
+    // Get active business for the user (including member businesses for accountants)
     const business = await db.business.findFirst({
-      where: {
-        ownerId: userId,
-      },
+      where: buildUserBusinessWhere(userId),
     });
 
     if (!business) {
+      logger.warn(`No business found for user ${userId}`);
       return { success: false, error: "No business found" };
     }
 
@@ -61,41 +84,69 @@ export async function getEnrichedTransactions(
     const where: Prisma.TransactionWhereInput = { businessId: business.id };
 
     // Add category filter if provided
-    if (resolvedFilters?.category) {
+    if (validatedFilters?.category && validatedFilters.category !== "all") {
       where.category = {
-        name: resolvedFilters.category,
+        name: validatedFilters.category,
       };
     }
 
-    // Add search filter if provided
-    if (resolvedFilters?.search) {
+    // Add search filter if provided (with sanitization)
+    if (validatedFilters?.search) {
+      const sanitizedSearch = validatedFilters.search.trim();
       where.OR = [
         {
           description: {
-            contains: resolvedFilters.search,
+            contains: sanitizedSearch,
             mode: "insensitive",
           },
         },
-        { notes: { contains: resolvedFilters.search, mode: "insensitive" } },
+        { notes: { contains: sanitizedSearch, mode: "insensitive" } },
       ];
     }
 
     // Add date range filter if provided
-    if (resolvedFilters?.dateFrom || resolvedFilters?.dateTo) {
+    if (validatedFilters?.dateFrom || validatedFilters?.dateTo) {
       where.date = {};
 
-      if (resolvedFilters.dateFrom) {
-        where.date.gte = new Date(resolvedFilters.dateFrom);
+      if (validatedFilters.dateFrom) {
+        where.date.gte = new Date(validatedFilters.dateFrom);
       }
 
-      if (resolvedFilters.dateTo) {
-        where.date.lte = new Date(resolvedFilters.dateTo);
+      if (validatedFilters.dateTo) {
+        // Add end of day to include the entire day
+        const endDate = new Date(validatedFilters.dateTo);
+        endDate.setHours(23, 59, 59, 999);
+        where.date.lte = endDate;
       }
     }
 
     // Add bank account filter if provided
-    if (resolvedFilters?.accountId) {
-      where.bankAccountId = resolvedFilters.accountId;
+    if (validatedFilters?.accountId && validatedFilters.accountId !== "all") {
+      where.bankAccountId = validatedFilters.accountId;
+    }
+
+    // Add transaction type filter if provided
+    if (validatedFilters?.type && validatedFilters.type !== "ALL") {
+      where.type = validatedFilters.type as Prisma.EnumTransactionTypeFilter;
+    }
+
+    // Add amount range filters if provided
+    if (validatedFilters?.minAmount || validatedFilters?.maxAmount) {
+      where.amount = {};
+
+      if (validatedFilters.minAmount) {
+        const minAmount = parseFloat(validatedFilters.minAmount);
+        if (!isNaN(minAmount) && minAmount >= 0) {
+          where.amount.gte = minAmount;
+        }
+      }
+
+      if (validatedFilters.maxAmount) {
+        const maxAmount = parseFloat(validatedFilters.maxAmount);
+        if (!isNaN(maxAmount) && maxAmount >= 0) {
+          where.amount.lte = maxAmount;
+        }
+      }
     }
 
     // Get transactions with their categories and bank accounts
@@ -143,7 +194,7 @@ export async function getEnrichedTransactions(
       total,
     };
   } catch (error) {
-    console.error("Error getting enriched transactions:", error);
+    logger.error("Error getting enriched transactions:", error);
     return {
       success: false,
       error: "Failed to get transactions. Please try again later.",
