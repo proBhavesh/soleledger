@@ -40,6 +40,7 @@ model User {
   reconReviews        ReconciliationStatus[] @relation("ReconciliationReviewer")
   generatedReports    ReportData[]       @relation("ReportGenerator")
   invitedMembers      BusinessMember[]   @relation("BusinessMemberInviter")
+  passwordResetTokens PasswordResetToken[]
 }
 
 model Account {
@@ -124,6 +125,7 @@ model Business {
   reportData   ReportData[]   @relation("ReportData")
   tasks        Task[]
   transactions Transaction[]
+  invitations  TeamInvitation[]
 }
 
 model BusinessMember {
@@ -146,20 +148,30 @@ model BusinessMember {
 }
 
 model TeamInvitation {
-  id         String           @id @default(cuid())
-  businessId String?
-  email      String
-  status     InvitationStatus @default(PENDING)
-  role       String
-  senderId   String
-  receiverId String?
-  expiresAt  DateTime
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
-  receiver   User?            @relation("InvitationReceiver", fields: [receiverId], references: [id])
-  sender     User             @relation("InvitationSender", fields: [senderId], references: [id], onDelete: Cascade)
+  id             String           @id @default(cuid())
+  businessId     String?
+  email          String
+  status         InvitationStatus @default(PENDING)
+  role           String
+  senderId       String
+  receiverId     String?
+  expiresAt      DateTime
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  token          String               @unique @default(cuid())
+  invitationType InvitationType
+  accessLevel    BusinessAccessLevel  @default(VIEW_ONLY)
+  businessName   String?              // For new businesses
+  clientName     String?              // Name of the person being invited
+  
+  receiver       User?            @relation("InvitationReceiver", fields: [receiverId], references: [id])
+  sender         User             @relation("InvitationSender", fields: [senderId], references: [id], onDelete: Cascade)
+  business       Business?        @relation(fields: [businessId], references: [id])
 
   @@unique([email, businessId], name: "email_businessId")
+  @@index([token])
+  @@index([senderId])
+  @@index([status])
 }
 
 model Subscription {
@@ -218,6 +230,9 @@ model BankAccount {
   business         Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions     Transaction[]
+  
+  @@index([plaidAccessToken])
+  @@index([businessId, userId])
 }
 
 model Category {
@@ -276,6 +291,10 @@ model Transaction {
   business      Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
   category      Category?       @relation(fields: [categoryId], references: [id])
   createdBy     User            @relation("TransactionCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  
+  @@index([businessId, externalId])
+  @@index([businessId, date])
+  @@index([bankAccountId, date])
 }
 
 model JournalEntry {
@@ -459,6 +478,12 @@ enum InvitationStatus {
   REJECTED
 }
 
+enum InvitationType {
+  NEW_USER               // User doesn't exist in system
+  EXISTING_NO_BUSINESS   // User exists but has no business
+  EXISTING_WITH_BUSINESS // User exists and owns a business
+}
+
 enum TransactionType {
   INCOME
   EXPENSE
@@ -524,4 +549,17 @@ enum ReportType {
   RECONCILIATION_SUMMARY
   TAX_SUMMARY
   MONTHLY_SUMMARY
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  usedAt    DateTime?
+  
+  @@index([userId])
+  @@index([token])
 }

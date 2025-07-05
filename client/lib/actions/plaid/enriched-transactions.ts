@@ -37,7 +37,8 @@ async function resolveFilters(
 export async function getEnrichedTransactions(
   limit: number = 10,
   offset: number = 0,
-  filters?: TransactionFilters
+  filters?: TransactionFilters,
+  businessId?: string
 ): Promise<GetEnrichedTransactionsResponse> {
   const session = await auth();
   if (!session?.user?.id) {
@@ -70,18 +71,43 @@ export async function getEnrichedTransactions(
       }
       validatedFilters = validation.data;
     }
-    // Get active business for the user (including member businesses for accountants)
-    const business = await db.business.findFirst({
-      where: buildUserBusinessWhere(userId),
-    });
+    // Determine which business to use
+    let targetBusinessId: string;
+    
+    if (businessId) {
+      // Verify user has access to the specified business
+      const business = await db.business.findFirst({
+        where: {
+          id: businessId,
+          OR: [
+            { ownerId: userId },
+            { members: { some: { userId } } }
+          ]
+        },
+      });
+      
+      if (!business) {
+        logger.warn(`Access denied to business ${businessId} for user ${userId}`);
+        return { success: false, error: "Access denied to this business" };
+      }
+      
+      targetBusinessId = businessId;
+    } else {
+      // Get active business for the user (including member businesses for accountants)
+      const business = await db.business.findFirst({
+        where: buildUserBusinessWhere(userId),
+      });
 
-    if (!business) {
-      logger.warn(`No business found for user ${userId}`);
-      return { success: false, error: "No business found" };
+      if (!business) {
+        logger.warn(`No business found for user ${userId}`);
+        return { success: false, error: "No business found" };
+      }
+      
+      targetBusinessId = business.id;
     }
 
     // Build the where clause with filters
-    const where: Prisma.TransactionWhereInput = { businessId: business.id };
+    const where: Prisma.TransactionWhereInput = { businessId: targetBusinessId };
 
     // Add category filter if provided
     if (validatedFilters?.category && validatedFilters.category !== "all") {

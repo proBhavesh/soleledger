@@ -18,7 +18,7 @@ interface PlaidTransactionSummary {
 /**
  * Gets all bank accounts for the current user's active business
  */
-export async function getBankAccounts() {
+export async function getBankAccounts(businessId?: string) {
   const session = await auth();
   if (!session?.user?.id) {
     throw new Error("Unauthorized");
@@ -27,15 +27,30 @@ export async function getBankAccounts() {
   const userId = session.user.id;
 
   try {
-    // Get active business for the user
-    const business = await db.business.findFirst({
-      where: {
-        ownerId: userId,
-      },
-    });
+    let business;
+    
+    if (businessId) {
+      // If businessId is provided, verify user has access to it
+      business = await db.business.findFirst({
+        where: {
+          id: businessId,
+          OR: [
+            { ownerId: userId },
+            { members: { some: { userId } } }
+          ]
+        },
+      });
+    } else {
+      // Otherwise, get the user's owned business
+      business = await db.business.findFirst({
+        where: {
+          ownerId: userId,
+        },
+      });
+    }
 
     if (!business) {
-      throw new Error("No business found");
+      throw new Error("No business found or access denied");
     }
 
     // Get bank accounts for the business
@@ -63,7 +78,8 @@ export async function getBankAccounts() {
  */
 export async function getAccountTransactions(
   bankAccountId: string,
-  limit: number = 5
+  limit: number = 5,
+  businessId?: string
 ) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -73,15 +89,30 @@ export async function getAccountTransactions(
   const userId = session.user.id;
 
   try {
-    // Get active business for the user
-    const business = await db.business.findFirst({
-      where: {
-        ownerId: userId,
-      },
-    });
+    let business;
+    
+    if (businessId) {
+      // If businessId is provided, verify user has access to it
+      business = await db.business.findFirst({
+        where: {
+          id: businessId,
+          OR: [
+            { ownerId: userId },
+            { members: { some: { userId } } }
+          ]
+        },
+      });
+    } else {
+      // Otherwise, get the user's owned business
+      business = await db.business.findFirst({
+        where: {
+          ownerId: userId,
+        },
+      });
+    }
 
     if (!business) {
-      return { success: false, error: "No business found" };
+      return { success: false, error: "No business found or access denied" };
     }
 
     // Verify account access

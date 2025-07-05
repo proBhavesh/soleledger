@@ -78,7 +78,10 @@ export async function inviteMemberToBusiness(
         status: "PENDING",
         role: "ACCOUNTANT",
         senderId: session.user.id,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        invitationType: existingUser ? "EXISTING_WITH_BUSINESS" : "NEW_USER",
+        accessLevel: "FULL_MANAGEMENT",
+        clientName: existingUser?.name || validatedData.email
       }
     });
 

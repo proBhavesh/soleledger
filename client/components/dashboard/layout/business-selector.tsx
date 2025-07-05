@@ -21,9 +21,11 @@ export function BusinessSelector() {
   } = useBusinessContext();
 
   // Handle business selection change
-  const handleBusinessChange = (businessId: string) => {
-    setSelectedBusinessId(businessId);
+  const handleBusinessChange = async (businessId: string) => {
+    await setSelectedBusinessId(businessId);
     // The dashboard will automatically update when selectedBusinessId changes
+    // Force a page refresh to ensure server-side data is fetched with new business
+    window.location.reload();
   };
 
   // Don't show selector for business owners with only their own business

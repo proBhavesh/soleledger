@@ -161,14 +161,17 @@ export async function exchangePublicToken(
       }
     }
 
-    // Use dynamic imports to avoid circular dependencies
-    // Sync transactions (enhanced implementation with enriched data)
-    const { syncTransactionsEnhanced } = await import("./transactions");
-    await syncTransactionsEnhanced(accessToken, businessId, userId);
+    // Use optimized transaction sync
+    const { syncTransactionsOptimized } = await import("./transactions-optimized");
+    const syncResult = await syncTransactionsOptimized(accessToken, businessId, userId);
+    console.log(`[exchangePublicToken] Synced ${syncResult.transactionsAdded} transactions in ${syncResult.duration}ms`);
 
-    // Get recurring transactions
+    // Get recurring transactions in parallel
     const { syncRecurringTransactions } = await import("./recurring");
-    await syncRecurringTransactions(accessToken);
+    // Don't await - let it run in background
+    syncRecurringTransactions(accessToken).catch(err => 
+      console.error("[exchangePublicToken] Recurring sync error:", err)
+    );
 
     revalidatePath("/dashboard");
 

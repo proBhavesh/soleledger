@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useSession } from "next-auth/react";
-import { getUserBusinesses, type UserBusiness } from "@/lib/actions/business-context-actions";
+import { getUserBusinesses, setSelectedBusinessId as setServerBusinessId, type UserBusiness } from "@/lib/actions/business-context-actions";
 
 interface BusinessContextType {
   selectedBusinessId: string | null;
@@ -87,15 +87,17 @@ export function BusinessProvider({ children }: BusinessProviderProps) {
     initializeBusinessContext();
   }, [isAccountant, status]);
 
-  // Save selected business to localStorage
-  const setSelectedBusinessId = (businessId: string) => {
+  // Save selected business to localStorage and server
+  const setSelectedBusinessId = async (businessId: string) => {
     setSelectedBusinessIdState(businessId);
     if (isAccountant) {
       try {
         localStorage.setItem("selectedBusinessId", businessId);
+        // Also sync to server for server-side rendered pages
+        await setServerBusinessId(businessId);
       } catch (error) {
         // localStorage might not be available (SSR, private browsing, etc.)
-        console.warn("Could not save to localStorage:", error);
+        console.warn("Could not save business selection:", error);
       }
     }
   };

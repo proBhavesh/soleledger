@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import React, { useState, Suspense } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { userAuthSchema } from "@/lib/types";
@@ -30,6 +30,14 @@ function LoginContent() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  const error = searchParams.get("error");
+
+  // Show error toast if there's an error in URL (from NextAuth)
+  React.useEffect(() => {
+    if (error === "CredentialsSignin") {
+      toast.error("Invalid email or password. Please try again.");
+    }
+  }, [error]);
 
   const {
     register,
@@ -61,12 +69,23 @@ function LoginContent() {
       }
 
       // Then handle the client-side authentication
-      await signIn("credentials", {
+      const signInResult = await signIn("credentials", {
         email: data.email,
         password: data.password,
-        redirect: true,
-        callbackUrl,
+        redirect: false, // Important: set to false to handle errors
       });
+
+      if (signInResult?.error) {
+        // NextAuth returns generic error, but we can provide user-friendly message
+        toast.error("Invalid email or password. Please try again.");
+        setIsPending(false);
+        return;
+      }
+
+      if (signInResult?.ok) {
+        // Successful login, redirect manually
+        window.location.href = callbackUrl;
+      }
     } catch (error) {
       toast.error("Something went wrong. Please try again.");
       console.error(error);

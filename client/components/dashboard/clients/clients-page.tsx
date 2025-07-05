@@ -20,25 +20,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Building2,
   Users,
   ArrowRight,
   Plus,
   Eye,
-  Mail,
-  MoreHorizontal,
 } from "lucide-react";
-import { toast } from "sonner";
 import { useBusinessContext } from "@/lib/contexts/business-context";
 import { UserBusiness, getUserBusinesses } from "@/lib/actions/business-context-actions";
-import { sendClientInvitation } from "@/lib/actions/client-management-actions";
 import { AddClientDialog } from "./add-client-dialog";
+import { InvitationManagement } from "./invitation-management";
 
 interface ClientsPageProps {
   initialBusinesses: UserBusiness[];
@@ -47,7 +38,6 @@ interface ClientsPageProps {
 export function ClientsPage({ initialBusinesses }: ClientsPageProps) {
   const [businesses, setBusinesses] = useState<UserBusiness[]>(initialBusinesses);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isSendingInvite, setIsSendingInvite] = useState<string | null>(null);
   const { setSelectedBusinessId, setAvailableBusinesses } = useBusinessContext();
   const router = useRouter();
 
@@ -57,18 +47,13 @@ export function ClientsPage({ initialBusinesses }: ClientsPageProps) {
     router.push("/dashboard");
   };
 
-  const handleClientAdded = async (businessId: string) => {
-    // Refresh the businesses list properly without page reload
+  const handleClientAdded = async () => {
+    // Refresh the businesses list after invitation is sent
     try {
       const result = await getUserBusinesses();
       if (result.success && result.businesses) {
         setBusinesses(result.businesses);
         setAvailableBusinesses(result.businesses); // Update context too
-        
-        // Optionally auto-select the newly created business
-        if (businessId) {
-          setSelectedBusinessId(businessId);
-        }
       } else {
         console.error("Failed to refresh businesses:", result.error);
       }
@@ -77,26 +62,6 @@ export function ClientsPage({ initialBusinesses }: ClientsPageProps) {
     }
   };
 
-  const handleSendInvitation = async (business: UserBusiness) => {
-    setIsSendingInvite(business.id);
-    try {
-      // For now, we'll need to get the business owner's email
-      // In a real implementation, we'd store this information
-      const email = `${business.name.toLowerCase().replace(/\s+/g, '')}@example.com`;
-      
-      const result = await sendClientInvitation(business.id, email, business.name);
-      if (result.success) {
-        toast.success(`Invitation sent to ${business.name}!`);
-      } else {
-        toast.error(result.error || "Failed to send invitation");
-      }
-    } catch (error) {
-      console.error("Error sending invitation:", error);
-      toast.error("Failed to send invitation");
-    } finally {
-      setIsSendingInvite(null);
-    }
-  };
 
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
@@ -261,29 +226,6 @@ export function ClientsPage({ initialBusinesses }: ClientsPageProps) {
                           <ArrowRight className="h-4 w-4" />
                         </Button>
                         
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleSendInvitation(business);
-                              }}
-                              disabled={isSendingInvite === business.id}
-                            >
-                              <Mail className="h-4 w-4 mr-2" />
-                              {isSendingInvite === business.id ? "Sending..." : "Send Invitation"}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -299,6 +241,9 @@ export function ClientsPage({ initialBusinesses }: ClientsPageProps) {
         onOpenChange={setIsAddDialogOpen}
         onSuccess={handleClientAdded}
       />
+
+      {/* Invitation Management */}
+      <InvitationManagement />
     </div>
   );
 }

@@ -208,6 +208,18 @@ try {
 - Member management in `/lib/actions/member-management-actions.ts`
 - Business switching via BusinessSelector component
 
+### Client Invitation System
+- **Email Service**: Resend integration for sending invitations
+- **Three Invitation Flows**:
+  1. New users: Create account → Set password → Business created
+  2. Existing users without business: Confirm → Business created
+  3. Existing users with business: Approval required from business owner
+- **Invitation Features**:
+  - 7-day expiration on invitation tokens
+  - Granular permission levels (VIEW_ONLY, FULL_MANAGEMENT, FINANCIAL_ONLY, DOCUMENTS_ONLY)
+  - Email templates for each scenario
+  - Invitation history and management
+
 ### Working with Plaid
 - Client initialized in `/lib/plaid/client.ts`
 - Webhook handler at `/app/api/plaid/webhook/route.ts`

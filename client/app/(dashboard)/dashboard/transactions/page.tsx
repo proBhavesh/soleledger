@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getEnrichedTransactions, syncAllBankAccountsInBackground } from "@/lib/actions/plaid";
 import { getBankAccounts } from "@/lib/actions/plaid/accounts";
+import { getCurrentBusinessId } from "@/lib/actions/business-context-actions";
 import { TransactionsPage } from "./transactions-page";
 import type { PageProps } from "@/lib/types/transactions";
 
@@ -41,15 +42,24 @@ export default async function TransactionsPageWrapper({
     maxAmount: params.max,
   };
 
+  // Get the current business ID
+  const businessId = await getCurrentBusinessId();
+  
+  if (!businessId) {
+    // No business found, redirect to dashboard
+    redirect("/dashboard");
+  }
+
   // Fetch transactions with enriched data and filters
   const transactionsResult = await getEnrichedTransactions(
     limit,
     offset,
-    filters
+    filters,
+    businessId
   );
 
   // Fetch bank accounts for filtering
-  const bankAccountsResult = await getBankAccounts();
+  const bankAccountsResult = await getBankAccounts(businessId);
 
   return (
     <TransactionsPage
