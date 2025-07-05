@@ -26,6 +26,7 @@ export function TransactionsPage({
   searchParams,
   error,
   bankAccounts,
+  businessId,
 }: TransactionsPageProps) {
   // Handle potential Promise from searchParams in Next.js 15
   const params =
@@ -64,7 +65,7 @@ export function TransactionsPage({
   }, [initialTransactions]);
 
   // Update URL with filters
-  const updateUrlWithFilters = (
+  const updateUrlWithFilters = useCallback((
     filters: Record<string, string | number | null>
   ) => {
     const params = new URLSearchParams();
@@ -86,7 +87,7 @@ export function TransactionsPage({
     }
 
     router.push(`/dashboard/transactions?${params.toString()}`);
-  };
+  }, [queryParams, router]);
 
   // Build filters using utility function
   const buildFilters = useCallback(() => {
@@ -102,7 +103,7 @@ export function TransactionsPage({
   }, [selectedCategory, searchTerm, dateRange, selectedAccount, selectedType, minAmount, maxAmount]);
 
   // Refresh transactions
-  const refreshTransactions = async () => {
+  const refreshTransactions = useCallback(async () => {
     setIsLoading(true);
     try {
       const filters = buildFilters();
@@ -110,7 +111,8 @@ export function TransactionsPage({
       const result = await getEnrichedTransactions(
         pageSize,
         (currentPage - 1) * pageSize,
-        filters
+        filters,
+        businessId || undefined
       );
 
       if (result.success && result.transactions) {
@@ -125,11 +127,11 @@ export function TransactionsPage({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [buildFilters, pageSize, currentPage, businessId]);
 
 
   // Client-side data fetching for pagination
-  const fetchPageData = async (page: number) => {
+  const fetchPageData = useCallback(async (page: number) => {
     setIsPaginationLoading(true);
 
     try {
@@ -138,7 +140,8 @@ export function TransactionsPage({
       const result = await getEnrichedTransactions(
         pageSize,
         (page - 1) * pageSize,
-        filters
+        filters,
+        businessId || undefined
       );
 
       if (result.success && result.transactions) {
@@ -152,10 +155,10 @@ export function TransactionsPage({
     } finally {
       setIsPaginationLoading(false);
     }
-  };
+  }, [buildFilters, pageSize, businessId]);
 
   // Handle pagination - now with client-side data fetching for faster UX
-  const handlePageChange = (page: number) => {
+  const handlePageChange = useCallback((page: number) => {
     setIsPaginationLoading(true);
 
     // Update URL first (to maintain state)
@@ -163,7 +166,7 @@ export function TransactionsPage({
 
     // Then fetch data client-side for a better UX
     fetchPageData(page);
-  };
+  }, [fetchPageData, updateUrlWithFilters]);
 
   // Get unique categories for filter dropdown (memoized for performance)
   const uniqueCategories = useMemo(() => {

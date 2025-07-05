@@ -21,6 +21,7 @@ export interface TransactionsPageProps {
     institution?: string | null;
     balance?: number | null;
   }>;
+  businessId: string | null;
 }
 
 export interface PageProps {

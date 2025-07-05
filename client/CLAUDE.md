@@ -241,3 +241,9 @@ try {
 - Prisma generates at build time
 - Environment-specific variables in Vercel/deployment platform
 - Database migrations run separately
+
+## Development Practices
+
+### Commit Guidelines
+- Don't include claude related content in commit message
+```

@@ -15,23 +15,48 @@ import { PlaidErrorDetails, PlaidErrorObject } from "@/lib/types";
 /**
  * Creates a Plaid Link token for a user to connect their bank account
  */
-export async function createLinkToken() {
+export async function createLinkToken(businessId?: string) {
   const session = await auth();
   if (!session?.user?.id) {
     throw new Error("Unauthorized");
   }
 
   const userId = session.user.id;
+  const userRole = session.user.role;
+  
+  let business;
 
-  // Get active business for the user
-  const business = await db.business.findFirst({
-    where: {
-      ownerId: userId,
-    },
-  });
+  if (businessId) {
+    // If businessId is provided, verify user has access to it
+    if (userRole === "BUSINESS_OWNER") {
+      business = await db.business.findFirst({
+        where: {
+          id: businessId,
+          ownerId: userId,
+        },
+      });
+    } else if (userRole === "ACCOUNTANT") {
+      business = await db.business.findFirst({
+        where: {
+          id: businessId,
+          OR: [
+            { ownerId: userId },
+            { members: { some: { userId } } },
+          ],
+        },
+      });
+    }
+  } else {
+    // Default behavior: get user's owned business
+    business = await db.business.findFirst({
+      where: {
+        ownerId: userId,
+      },
+    });
+  }
 
   if (!business) {
-    throw new Error("No business found");
+    throw new Error("No business found or access denied");
   }
 
   const request: LinkTokenCreateRequest = {

@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getBankAccounts } from "@/lib/actions/plaid";
+import { getCurrentBusinessId } from "@/lib/actions/business-context-actions";
 import { BankAccountsPage } from "./bank-accounts-page";
 
 export const metadata = {
@@ -16,9 +17,17 @@ export default async function BankAccountsPageWrapper() {
     redirect("/login?callbackUrl=/dashboard/bank-accounts");
   }
 
+  // Get the current business ID
+  const businessId = await getCurrentBusinessId();
+  
+  if (!businessId) {
+    // No business found, redirect to dashboard
+    redirect("/dashboard");
+  }
+
   // Get bank accounts data from server
   try {
-    const accountsData = await getBankAccounts();
+    const accountsData = await getBankAccounts(businessId);
 
     return (
       <BankAccountsPage

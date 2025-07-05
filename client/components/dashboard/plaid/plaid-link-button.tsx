@@ -35,7 +35,7 @@ export function PlaidLinkButton({
   variant = "default",
   size = "default",
 }: PlaidLinkButtonProps) {
-  const { permissions, isAccountant } = useBusinessContext();
+  const { permissions, isAccountant, selectedBusinessId } = useBusinessContext();
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState(0);
@@ -59,7 +59,7 @@ export function PlaidLinkButton({
     setIsLoading(true);
     setShouldOpenLink(true);
     try {
-      const response = await createLinkToken();
+      const response = await createLinkToken(selectedBusinessId || undefined);
       setToken(response.linkToken);
       setBusinessId(response.businessId);
     } catch (error) {
@@ -69,7 +69,7 @@ export function PlaidLinkButton({
     } finally {
       setIsLoading(false);
     }
-  }, [canManageAccounts]);
+  }, [canManageAccounts, selectedBusinessId]);
 
   // Handle success from Plaid Link
   const handleSuccess = useCallback(

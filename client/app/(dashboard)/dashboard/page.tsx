@@ -293,7 +293,9 @@ export default function DashboardPage() {
                 />
                 <div className="col-span-3">
                   <BankAccountsSummary 
+                    accounts={financialData.bankAccounts}
                     onAccountSelect={(accountId) => router.push(`/dashboard/bank-accounts?account=${accountId}`)}
+                    onRefresh={refetchData}
                   />
                 </div>
               </div>

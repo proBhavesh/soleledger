@@ -80,6 +80,7 @@ export default async function TransactionsPageWrapper({
       bankAccounts={
         bankAccountsResult.success ? bankAccountsResult.accounts || [] : []
       }
+      businessId={businessId}
     />
   );
 }

@@ -270,13 +270,34 @@ export async function refreshTransactions(bankAccountId: string) {
   const userId = session.user.id;
 
   try {
-    // Get the bank account
-    const bankAccount = await db.bankAccount.findFirst({
+    // Get the bank account with business info
+    const bankAccountWithBusiness = await db.bankAccount.findFirst({
       where: {
         id: bankAccountId,
-        userId,
+      },
+      include: {
+        business: true,
       },
     });
+
+    if (!bankAccountWithBusiness) {
+      throw new Error("Bank account not found");
+    }
+
+    // Verify user has access to this business
+    const hasAccess = bankAccountWithBusiness.business.ownerId === userId ||
+      await db.businessMember.findFirst({
+        where: {
+          businessId: bankAccountWithBusiness.businessId,
+          userId,
+        },
+      });
+
+    if (!hasAccess) {
+      throw new Error("Access denied to this bank account");
+    }
+
+    const bankAccount = bankAccountWithBusiness;
 
     if (!bankAccount || !bankAccount.plaidAccessToken) {
       throw new Error("Bank account not found or not connected to Plaid");

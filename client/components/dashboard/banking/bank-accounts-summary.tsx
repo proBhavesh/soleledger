@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { PlaidLinkButton } from "@/components/dashboard/plaid/plaid-link-button";
 import { getBankAccounts, refreshBalances } from "@/lib/actions/plaid";
+import { useBusinessContext } from "@/lib/contexts/business-context";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
   CircleDollarSign,
@@ -51,6 +52,7 @@ export function BankAccountsSummary({
   const [refreshingAccountId, setRefreshingAccountId] = useState<string | null>(
     null
   );
+  const { selectedBusinessId } = useBusinessContext();
 
   // Use external accounts data if provided
   useEffect(() => {
@@ -70,7 +72,7 @@ export function BankAccountsSummary({
         // We expect externalAccounts to be updated via the useEffect
       } else {
         // Legacy code path when component is used standalone
-        const result = await getBankAccounts();
+        const result = await getBankAccounts(selectedBusinessId || undefined);
         // Check if the result has the accounts property (is BankAccountsData)
         if (result && "accounts" in result && Array.isArray(result.accounts)) {
           setAccounts(result.accounts);
@@ -85,7 +87,7 @@ export function BankAccountsSummary({
     } finally {
       setIsLoading(false);
     }
-  }, [externalRefresh]);
+  }, [externalRefresh, selectedBusinessId]);
 
   // Refresh bank accounts
   const refreshAccounts = async () => {

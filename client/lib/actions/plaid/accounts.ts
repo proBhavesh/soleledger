@@ -186,13 +186,40 @@ export async function refreshBalances(bankAccountId: string) {
   const userId = session.user.id;
 
   try {
-    // Get the bank account
-    const bankAccount = await db.bankAccount.findFirst({
+    // First verify the bank account exists and user has access
+    const bankAccountWithBusiness = await db.bankAccount.findFirst({
       where: {
         id: bankAccountId,
-        userId,
+      },
+      include: {
+        business: true,
       },
     });
+
+    if (!bankAccountWithBusiness) {
+      return {
+        success: false,
+        error: "Bank account not found",
+      };
+    }
+
+    // Verify user has access to this business
+    const hasAccess = bankAccountWithBusiness.business.ownerId === userId ||
+      await db.businessMember.findFirst({
+        where: {
+          businessId: bankAccountWithBusiness.businessId,
+          userId,
+        },
+      });
+
+    if (!hasAccess) {
+      return {
+        success: false,
+        error: "Access denied to this bank account",
+      };
+    }
+
+    const bankAccount = bankAccountWithBusiness;
 
     if (!bankAccount || !bankAccount.plaidAccessToken) {
       return {
@@ -265,13 +292,40 @@ export async function getAccountBalanceHistory(
   const userId = session.user.id;
 
   try {
-    // Get account details
-    const account = await db.bankAccount.findFirst({
+    // Get account details with business info
+    const accountWithBusiness = await db.bankAccount.findFirst({
       where: {
         id: accountId,
-        userId,
+      },
+      include: {
+        business: true,
       },
     });
+
+    if (!accountWithBusiness) {
+      return {
+        success: false,
+        error: "Bank account not found",
+      };
+    }
+
+    // Verify user has access to this business
+    const hasAccess = accountWithBusiness.business.ownerId === userId ||
+      await db.businessMember.findFirst({
+        where: {
+          businessId: accountWithBusiness.businessId,
+          userId,
+        },
+      });
+
+    if (!hasAccess) {
+      return {
+        success: false,
+        error: "Access denied to this bank account",
+      };
+    }
+
+    const account = accountWithBusiness;
 
     if (!account || !account.plaidAccessToken) {
       return {

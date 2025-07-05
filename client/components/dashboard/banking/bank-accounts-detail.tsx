@@ -69,7 +69,7 @@ export function BankAccountDetail({
     async function fetchTransactions() {
       setIsLoadingTransactions(true);
       try {
-        const result = await getAccountTransactions(account.id);
+        const result = await getAccountTransactions(account.id, 10, account.businessId);
         if (result.success && result.transactions) {
           // Transform dates to ensure they're Date objects
           const formattedTransactions: Transaction[] = result.transactions.map(
@@ -90,7 +90,7 @@ export function BankAccountDetail({
     }
 
     fetchTransactions();
-  }, [account.id]);
+  }, [account.id, account.businessId]);
 
   // Handle refresh of account balance
   const handleRefreshBalance = async () => {
