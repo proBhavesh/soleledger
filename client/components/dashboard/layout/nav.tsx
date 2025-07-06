@@ -15,6 +15,7 @@ import {
   Package2,
   LogOut,
   User,
+  FileUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,14 @@ const menuGroups = [
         roles: ["BUSINESS_OWNER", "ACCOUNTANT", "ADMIN"],
         color: "text-purple-600",
         bgColor: "bg-purple-100",
+      },
+      {
+        title: "Bank Imports",
+        href: "/dashboard/bank-imports",
+        icon: FileUp,
+        roles: ["BUSINESS_OWNER", "ACCOUNTANT", "ADMIN"],
+        color: "text-teal-600",
+        bgColor: "bg-teal-100",
       },
     ],
   },

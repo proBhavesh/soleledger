@@ -8,6 +8,11 @@ import {
   TRANSACTION_HISTORY_DAYS,
 } from "@/lib/plaid/client";
 import { TransactionsSyncRequest } from "plaid";
+import { 
+  getTransactionType, 
+  shouldIgnoreTransaction,
+  mapPlaidCategoryWithMerchant 
+} from "@/lib/plaid/category-mapper";
 import { revalidatePath } from "next/cache";
 
 /**
@@ -86,68 +91,52 @@ export async function syncTransactionsEnhanced(
         });
 
         if (!existingTransaction) {
-          // Determine transaction type and account type based on amount
-          const transactionType = transaction.amount > 0 ? "EXPENSE" : "INCOME";
-          const accountType = transaction.amount > 0 ? "EXPENSE" : "INCOME";
+          // Skip internal transfers
+          if (transaction.personal_finance_category && shouldIgnoreTransaction(transaction.personal_finance_category)) {
+            continue;
+          }
 
-          // Get personal finance category if available
+          // Determine transaction type using the category mapper
+          const transactionType = transaction.personal_finance_category 
+            ? getTransactionType(transaction.personal_finance_category)
+            : transaction.amount < 0 ? 'EXPENSE' : 'INCOME';
+          const accountType = transactionType;
+
           let categoryId: string | undefined = undefined;
           if (transaction.personal_finance_category) {
-            // Try to find a matching category in our system
-            const category = await db.category.findFirst({
-              where: {
-                businessId,
-                name: transaction.personal_finance_category.detailed,
-                accountType: accountType,
-              },
-            });
+            // Map Plaid category to Chart of Accounts category
+            const chartOfAccountsCategory = mapPlaidCategoryWithMerchant(
+              transaction.personal_finance_category,
+              transaction.merchant_name || undefined
+            );
 
-            if (category) {
-              categoryId = category.id;
-            } else {
-              // Find the next available account code in the appropriate range
-              const accountTypeRanges = {
-                INCOME: { start: 4000, end: 4999 },
-                EXPENSE: { start: 6000, end: 6999 },
-              };
-
-              const range = accountTypeRanges[accountType];
-
-              // Find the highest existing account code in this range
-              const existingCategories = await db.category.findMany({
+            if (chartOfAccountsCategory) {
+              // Find the category in the Chart of Accounts
+              const category = await db.category.findFirst({
                 where: {
                   businessId,
+                  name: chartOfAccountsCategory,
                   accountType: accountType,
-                  accountCode: {
-                    gte: range.start.toString(),
-                    lte: range.end.toString(),
+                  isActive: true,
+                },
+              });
+
+              if (category) {
+                categoryId = category.id;
+              } else {
+                // If category not found, use default category
+                const defaultCategory = await db.category.findFirst({
+                  where: {
+                    businessId,
+                    accountCode: accountType === "INCOME" ? "4100" : "9030", // Other Income or Miscellaneous
+                    accountType: accountType,
                   },
-                },
-                orderBy: {
-                  accountCode: "desc",
-                },
-                take: 1,
-              });
-
-              let nextAccountCode = range.start.toString();
-              if (existingCategories.length > 0) {
-                const lastCode = parseInt(existingCategories[0].accountCode);
-                nextAccountCode = (lastCode + 1).toString();
+                });
+                
+                if (defaultCategory) {
+                  categoryId = defaultCategory.id;
+                }
               }
-
-              // Create a new category based on Plaid's categorization
-              const newCategory = await db.category.create({
-                data: {
-                  businessId,
-                  accountCode: nextAccountCode,
-                  name: transaction.personal_finance_category.detailed,
-                  accountType: accountType,
-                  description: `Imported from ${transaction.personal_finance_category.primary}`,
-                  sortOrder: parseInt(nextAccountCode),
-                  creatorId: userId,
-                },
-              });
-              categoryId = newCategory.id;
             }
           }
 

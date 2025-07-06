@@ -456,6 +456,10 @@ const DEFAULT_CHART_OF_ACCOUNTS: DefaultChartAccount[] = [
 
 /**
  * Create default Chart of Accounts for a new business
+ * 
+ * This function is only called once during business setup to create the
+ * standard Chart of Accounts. After initial setup, all category management
+ * must go through the createAccount function.
  */
 export async function createDefaultChartOfAccounts(
   businessId: string,
@@ -599,6 +603,10 @@ export async function getChartOfAccounts(businessId?: string) {
 
 /**
  * Create a new account in the Chart of Accounts
+ * 
+ * IMPORTANT: This is the ONLY function in the entire codebase that should
+ * create new categories. All other parts of the system must use existing
+ * categories from the Chart of Accounts.
  */
 const createAccountSchema = z.object({
   accountCode: z.string().min(3, "Account code must be at least 3 characters"),

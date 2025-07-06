@@ -35,8 +35,23 @@ export function PlaidLinkButton({
   variant = "default",
   size = "default",
 }: PlaidLinkButtonProps) {
-  const { permissions, isAccountant, selectedBusinessId } = useBusinessContext();
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Use business context with safe fallback
+  let permissions = { canManageFinancials: true };
+  let isAccountant = false;
+  let selectedBusinessId: string | null = null;
+  
+  try {
+    const context = useBusinessContext();
+    permissions = context.permissions;
+    isAccountant = context.isAccountant;
+    selectedBusinessId = context.selectedBusinessId;
+  } catch {
+    // If context is not available, use default values
+    // This can happen during server-side rendering or when component
+    // is rendered outside of BusinessProvider
+  }
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState(0);
   const [token, setToken] = useState<string | null>(null);
