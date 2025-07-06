@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { saveGeneratedReport } from "./report-persistence-actions";
+import { buildUserBusinessWhere } from "@/lib/utils/permission-helpers";
 import {
   reportRequestSchema,
   type ReportRequest,
@@ -32,9 +33,9 @@ export async function generateProfitLossReport(
 
     const validatedData = reportRequestSchema.parse(data);
 
-    // Get user's business
+    // Get user's business (works for both owners and accountants)
     const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: buildUserBusinessWhere(session.user.id),
     });
 
     if (!business) {
@@ -153,9 +154,9 @@ export async function generateExpenseCategoriesReport(
 
     const validatedData = reportRequestSchema.parse(data);
 
-    // Get user's business
+    // Get user's business (works for both owners and accountants)
     const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: buildUserBusinessWhere(session.user.id),
     });
 
     if (!business) {
@@ -282,9 +283,9 @@ export async function generateReconciliationSummaryReport(
 
     const validatedData = reportRequestSchema.parse(data);
 
-    // Get user's business
+    // Get user's business (works for both owners and accountants)
     const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: buildUserBusinessWhere(session.user.id),
     });
 
     if (!business) {
@@ -568,9 +569,9 @@ export async function generateBalanceSheetReport(
 
     const validatedData = reportRequestSchema.parse(data);
 
-    // Get user's business
+    // Get user's business (works for both owners and accountants)
     const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: buildUserBusinessWhere(session.user.id),
     });
 
     if (!business) {
@@ -963,9 +964,9 @@ export async function generateCashFlowReport(
 
     const validatedData = reportRequestSchema.parse(data);
 
-    // Get user's business
+    // Get user's business (works for both owners and accountants)
     const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: buildUserBusinessWhere(session.user.id),
     });
 
     if (!business) {

@@ -3,6 +3,7 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma";
+import { buildUserBusinessWhere } from "@/lib/utils/permission-helpers";
 import {
   generatePresignedUrl,
   validateFileType,
@@ -117,9 +118,9 @@ export async function processDocument(
 
     const validatedData = processRequestSchema.parse(request);
 
-    // Get user's business
+    // Get user's business (works for both owners and accountants)
     const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: buildUserBusinessWhere(session.user.id),
     });
 
     if (!business) {
@@ -322,9 +323,9 @@ export async function getRecentDocuments(): Promise<RecentDocumentsResult> {
       return { success: false, error: "Unauthorized" };
     }
 
-    // Get user's business
+    // Get user's business (works for both owners and accountants)
     const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: buildUserBusinessWhere(session.user.id),
     });
 
     if (!business) {

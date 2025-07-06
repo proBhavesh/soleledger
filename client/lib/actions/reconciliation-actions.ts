@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { subDays } from "date-fns";
+import { buildUserBusinessWhere, buildTransactionPermissionWhere } from "@/lib/utils/permission-helpers";
 import {
   updateReconciliationSchema,
   bulkReconcileSchema,
@@ -31,9 +32,9 @@ export async function getReconciliationSummary(
       return { success: false, error: "Unauthorized" };
     }
 
-    // Get user's business
+    // Get user's business (works for both owners and accountants)
     const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: buildUserBusinessWhere(session.user.id),
     });
 
     if (!business) {
@@ -123,9 +124,9 @@ export async function getUnmatchedTransactions(
       return { success: false, error: "Unauthorized" };
     }
 
-    // Get user's business
+    // Get user's business (works for both owners and accountants)
     const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: buildUserBusinessWhere(session.user.id),
     });
 
     if (!business) {
@@ -212,14 +213,15 @@ export async function updateReconciliationStatus(
 
     // Verify transaction belongs to user's business
     const transaction = await db.transaction.findFirst({
-      where: {
-        id: validatedData.transactionId,
-        business: { ownerId: session.user.id },
-      },
+      where: buildTransactionPermissionWhere(
+        validatedData.transactionId,
+        session.user.id,
+        false
+      ),
     });
 
     if (!transaction) {
-      return { success: false, error: "Transaction not found" };
+      return { success: false, error: "Transaction not found or access denied" };
     }
 
     // Update or create reconciliation status
@@ -265,9 +267,9 @@ export async function autoReconcileTransactions(): Promise<AutoReconcileResponse
       return { success: false, error: "Unauthorized" };
     }
 
-    // Get user's business
+    // Get user's business (works for both owners and accountants)
     const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: buildUserBusinessWhere(session.user.id),
     });
 
     if (!business) {
@@ -359,12 +361,30 @@ export async function bulkReconcileTransactions(
     const transactions = await db.transaction.findMany({
       where: {
         id: { in: transactionIds },
-        business: { ownerId: session.user.id },
+        OR: [
+          // Check if user is the business owner
+          { business: { ownerId: session.user.id } },
+          // Check if user is a member with permissions
+          {
+            business: {
+              members: {
+                some: {
+                  userId: session.user.id,
+                  OR: [
+                    { role: "BUSINESS_OWNER" },
+                    { role: "ACCOUNTANT" },
+                    { accessLevel: { in: ["FULL_MANAGEMENT", "FINANCIAL_ONLY"] } },
+                  ],
+                },
+              },
+            },
+          },
+        ],
       },
     });
 
     if (transactions.length !== transactionIds.length) {
-      return { success: false, error: "Some transactions not found" };
+      return { success: false, error: "Some transactions not found or access denied" };
     }
 
     // Bulk create reconciliation statuses
@@ -406,9 +426,9 @@ export async function getAvailableDocuments(
       return { success: false, error: "Unauthorized" };
     }
 
-    // Get user's business
+    // Get user's business (works for both owners and accountants)
     const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: buildUserBusinessWhere(session.user.id),
     });
 
     if (!business) {
@@ -487,21 +507,22 @@ export async function manuallyMatchTransaction(
 
     // Verify transaction and document belong to user's business
     const transaction = await db.transaction.findFirst({
-      where: {
-        id: transactionId,
-        business: { ownerId: session.user.id },
-      },
+      where: buildTransactionPermissionWhere(
+        transactionId,
+        session.user.id,
+        false
+      ),
     });
 
     const document = await db.document.findFirst({
       where: {
         id: documentId,
-        business: { ownerId: session.user.id },
+        business: buildUserBusinessWhere(session.user.id),
       },
     });
 
     if (!transaction || !document) {
-      return { success: false, error: "Transaction or document not found" };
+      return { success: false, error: "Transaction or document not found or access denied" };
     }
 
     // Create or update the match
@@ -577,10 +598,11 @@ export async function unmatchTransaction(
 
     // Verify transaction belongs to user's business
     const transaction = await db.transaction.findFirst({
-      where: {
-        id: transactionId,
-        business: { ownerId: session.user.id },
-      },
+      where: buildTransactionPermissionWhere(
+        transactionId,
+        session.user.id,
+        false
+      ),
       include: {
         reconciliation: true,
       },
@@ -636,9 +658,9 @@ export async function getRecentlyMatchedTransactions(
       return { success: false, error: "Unauthorized" };
     }
 
-    // Get user's business
+    // Get user's business (works for both owners and accountants)
     const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: buildUserBusinessWhere(session.user.id),
     });
 
     if (!business) {

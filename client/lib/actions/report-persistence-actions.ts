@@ -3,6 +3,7 @@
 import { auth } from "@/lib/auth";
 import { db, Prisma, ReportType } from "@/lib/db";
 import { z } from "zod";
+import { buildUserBusinessWhere } from "@/lib/utils/permission-helpers";
 import type { 
   SaveReportInput, 
   ReportHistoryFilters, 
@@ -68,9 +69,9 @@ export async function saveGeneratedReport(
 
     const validatedData = saveReportSchema.parse(input);
 
-    // Get user's business
+    // Get user's business (works for both owners and accountants)
     const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: buildUserBusinessWhere(session.user.id),
     });
 
     if (!business) {
@@ -117,9 +118,9 @@ export async function getReportHistory(
 
     const validatedFilters = getReportHistorySchema.parse(filters);
 
-    // Get user's business
+    // Get user's business (works for both owners and accountants)
     const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: buildUserBusinessWhere(session.user.id),
     });
 
     if (!business) {
@@ -310,9 +311,9 @@ export async function getLatestReports(): Promise<{
       return { success: false, error: "Unauthorized" };
     }
 
-    // Get user's business
+    // Get user's business (works for both owners and accountants)
     const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: buildUserBusinessWhere(session.user.id),
     });
 
     if (!business) {
@@ -430,9 +431,9 @@ export async function getReportStatistics(): Promise<{
       return { success: false, error: "Unauthorized" };
     }
 
-    // Get user's business
+    // Get user's business (works for both owners and accountants)
     const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: buildUserBusinessWhere(session.user.id),
     });
 
     if (!business) {
