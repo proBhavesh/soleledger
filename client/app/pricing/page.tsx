@@ -12,9 +12,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "next-auth/react";
 import {
   Accordion,
@@ -25,18 +22,15 @@ import {
 import {
   startTrialAction,
   createCheckoutSessionAction,
-  requestEnterpriseCallbackAction,
 } from "@/lib/actions/subscription-actions";
 import { PLANS } from "@/lib/stripe/client";
 import { toast } from "sonner";
 
 export default function PricingPage() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({});
-  const [showEnterpriseForm, setShowEnterpriseForm] = useState(false);
-
-  const handlePlanSelect = async (planType: "BASIC" | "PROFESSIONAL") => {
+  const handlePlanSelect = async (planType: "FREE" | "PROFESSIONAL" | "BUSINESS") => {
     console.log("handlePlanSelect", planType);
     if (status !== "authenticated") {
       // Redirect to login if not authenticated
@@ -83,30 +77,6 @@ export default function PricingPage() {
     }
   };
 
-  const handleEnterpriseRequest = async (
-    e: React.FormEvent<HTMLFormElement>
-  ) => {
-    e.preventDefault();
-    setIsLoading({ ...isLoading, ENTERPRISE: true });
-
-    const formData = new FormData(e.currentTarget);
-
-    try {
-      const result = await requestEnterpriseCallbackAction(formData);
-
-      if (result.error) {
-        toast.error(result.error);
-      } else if (result.success) {
-        toast.success(result.message);
-        setShowEnterpriseForm(false);
-      }
-    } catch (error) {
-      console.error("Error submitting enterprise request:", error);
-      toast.error("Something went wrong. Please try again.");
-    } finally {
-      setIsLoading({ ...isLoading, ENTERPRISE: false });
-    }
-  };
 
   return (
     <div className="mx-auto max-w-7xl p-5">
@@ -115,32 +85,31 @@ export default function PricingPage() {
           Simple, Transparent Pricing
         </h1>
         <p className="text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">
-          Choose the plan that fits your business needs, with a 30-day free
-          trial - no credit card required.
+          Start free and upgrade as you grow. No credit card required.
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
-        {/* Basic Plan */}
+        {/* Free Plan */}
         <Card className="flex flex-col relative overflow-hidden hover:shadow-xl transition-all duration-300 group">
           <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
           <CardHeader className="pb-8">
             <CardTitle className="text-2xl font-bold">
-              {PLANS.BASIC.name}
+              {PLANS.FREE.name}
             </CardTitle>
             <CardDescription className="text-base mt-2">
-              {PLANS.BASIC.description}
+              {PLANS.FREE.description}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex-grow">
             <div className="mb-8">
               <span className="text-5xl font-bold tracking-tight">
-                ${PLANS.BASIC.price}
+                ${PLANS.FREE.price}
               </span>
               <span className="text-muted-foreground ml-2 text-lg">/month</span>
             </div>
             <ul className="space-y-4">
-              {PLANS.BASIC.features.map((feature, i) => (
+              {PLANS.FREE.features.map((feature, i) => (
                 <li key={i} className="flex items-start">
                   <CheckIcon className="mr-3 h-5 w-5 text-emerald-500 shrink-0 mt-0.5" />
                   <span className="text-muted-foreground">{feature}</span>
@@ -152,10 +121,10 @@ export default function PricingPage() {
             <Button
               type="button"
               className="w-full h-12 text-base cursor-pointer hover:scale-[1.02] transition-transform duration-200"
-              onClick={() => handlePlanSelect("BASIC")}
-              disabled={isLoading.BASIC}
+              onClick={() => handlePlanSelect("FREE")}
+              disabled={isLoading.FREE}
             >
-              {isLoading.BASIC ? "Processing..." : "Start Free Trial"}
+              {isLoading.FREE ? "Processing..." : "Get Started Free"}
             </Button>
           </CardFooter>
         </Card>
@@ -199,28 +168,31 @@ export default function PricingPage() {
               onClick={() => handlePlanSelect("PROFESSIONAL")}
               disabled={isLoading.PROFESSIONAL}
             >
-              {isLoading.PROFESSIONAL ? "Processing..." : "Start Free Trial"}
+              {isLoading.PROFESSIONAL ? "Processing..." : "Get Started"}
             </Button>
           </CardFooter>
         </Card>
 
-        {/* Enterprise Plan */}
+        {/* Business Plan */}
         <Card className="flex flex-col relative overflow-hidden hover:shadow-xl transition-all duration-300 group">
           <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
           <CardHeader className="pb-8">
             <CardTitle className="text-2xl font-bold">
-              {PLANS.ENTERPRISE.name}
+              {PLANS.BUSINESS.name}
             </CardTitle>
             <CardDescription className="text-base mt-2">
-              {PLANS.ENTERPRISE.description}
+              {PLANS.BUSINESS.description}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex-grow">
             <div className="mb-8">
-              <span className="text-5xl font-bold tracking-tight">Custom</span>
+              <span className="text-5xl font-bold tracking-tight">
+                ${PLANS.BUSINESS.price}
+              </span>
+              <span className="text-muted-foreground ml-2 text-lg">/month</span>
             </div>
             <ul className="space-y-4">
-              {PLANS.ENTERPRISE.features.map((feature, i) => (
+              {PLANS.BUSINESS.features.map((feature, i) => (
                 <li key={i} className="flex items-start">
                   <CheckIcon className="mr-3 h-5 w-5 text-emerald-500 shrink-0 mt-0.5" />
                   <span className="text-muted-foreground">{feature}</span>
@@ -233,98 +205,15 @@ export default function PricingPage() {
               type="button"
               className="w-full h-12 text-base cursor-pointer hover:scale-[1.02] transition-transform duration-200"
               variant="outline"
-              onClick={() => setShowEnterpriseForm(true)}
+              onClick={() => handlePlanSelect("BUSINESS")}
+              disabled={isLoading.BUSINESS}
             >
-              Contact Sales
+              {isLoading.BUSINESS ? "Processing..." : "Get Started"}
             </Button>
           </CardFooter>
         </Card>
       </div>
 
-      {/* Enterprise Contact Form */}
-      {showEnterpriseForm && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <Card className="w-full max-w-md relative">
-            <CardHeader>
-              <CardTitle className="text-2xl">
-                Request Enterprise Information
-              </CardTitle>
-              <CardDescription className="text-base mt-2">
-                Fill out this form and our team will contact you shortly.
-              </CardDescription>
-            </CardHeader>
-            <form onSubmit={handleEnterpriseRequest}>
-              <CardContent className="space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-sm font-medium">
-                    Full Name
-                  </Label>
-                  <Input id="name" name="name" required className="h-11" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-medium">
-                    Email
-                  </Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    defaultValue={session?.user?.email || ""}
-                    required
-                    className="h-11"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="company" className="text-sm font-medium">
-                    Company
-                  </Label>
-                  <Input
-                    id="company"
-                    name="company"
-                    required
-                    className="h-11"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phoneNumber" className="text-sm font-medium">
-                    Phone Number
-                  </Label>
-                  <Input id="phoneNumber" name="phoneNumber" className="h-11" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="message" className="text-sm font-medium">
-                    Message
-                  </Label>
-                  <Textarea
-                    id="message"
-                    name="message"
-                    placeholder="Tell us about your business needs"
-                    rows={3}
-                    className="resize-none"
-                  />
-                </div>
-              </CardContent>
-              <CardFooter className="flex justify-between gap-4 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowEnterpriseForm(false)}
-                  className="flex-1 h-11 cursor-pointer"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={isLoading.ENTERPRISE}
-                  className="flex-1 h-11 cursor-pointer"
-                >
-                  {isLoading.ENTERPRISE ? "Submitting..." : "Submit Request"}
-                </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        </div>
-      )}
 
       <div className="mt-32 text-center">
         <h2 className="text-3xl font-bold mb-12">Frequently Asked Questions</h2>
@@ -335,8 +224,7 @@ export default function PricingPage() {
                 Do I need a credit card to sign up?
               </AccordionTrigger>
               <AccordionContent className="text-muted-foreground leading-relaxed">
-                No, your 30-day trial does not require a credit card. You can
-                try any plan risk-free.
+                No, you can start with our free plan without a credit card. You&apos;ll only need a card when upgrading to a paid plan.
               </AccordionContent>
             </AccordionItem>
 
@@ -352,11 +240,10 @@ export default function PricingPage() {
 
             <AccordionItem value="trial-end">
               <AccordionTrigger className="text-xl font-semibold">
-                What happens when my trial ends?
+                What happens when I reach my plan limits?
               </AccordionTrigger>
               <AccordionContent className="text-muted-foreground leading-relaxed">
-                You&apos;ll be prompted to select a plan and enter payment
-                details to continue using SoleLedger.
+                You&apos;ll be notified when approaching your limits. You can upgrade anytime to continue adding transactions, bank accounts, or documents.
               </AccordionContent>
             </AccordionItem>
 

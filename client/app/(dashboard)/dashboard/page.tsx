@@ -21,6 +21,7 @@ import { RecentTransactions } from "@/components/dashboard/transactions/recent-t
 import { PendingDocuments } from "@/components/dashboard/overview/pending-documents";
 import { ClientOverview } from "@/components/dashboard/overview/client-overview";
 import { Client, FinancialSummary } from "@/lib/types/dashboard";
+import { UsageTracker } from "@/components/dashboard/settings/usage-tracker";
 
 export default function DashboardPage() {
   const { data: session } = useSession();
@@ -307,6 +308,9 @@ export default function DashboardPage() {
                 recentTransactions={financialData.recentTransactions}
                 isLoading={isLoading}
               />
+
+              {/* Usage Tracker */}
+              <UsageTracker />
 
               {/* Add RecurringTransactions component if there are recurring expenses */}
               {financialData.recurringExpenses &&

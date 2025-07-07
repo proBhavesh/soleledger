@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma";
 import { buildUserBusinessWhere } from "@/lib/utils/permission-helpers";
+import { checkDocumentUploadLimit, incrementDocumentUploadCount } from "@/lib/services/usage-tracking";
 import {
   generatePresignedUrl,
   validateFileType,
@@ -127,6 +128,12 @@ export async function processDocument(
       return { success: false, error: "No business found" };
     }
 
+    // Check document upload limit
+    const usageCheck = await checkDocumentUploadLimit(session.user.id, business.id);
+    if (!usageCheck.allowed) {
+      return { success: false, error: usageCheck.message || "Document upload limit exceeded" };
+    }
+
     // Create document record in database
     const document = await db.document.create({
       data: {
@@ -208,6 +215,9 @@ export async function processDocument(
           });
         })
       );
+
+      // Increment document upload count after successful processing
+      await incrementDocumentUploadCount(business.id);
 
       // If we have a high-confidence match, auto-link the document
       if (matches.length > 0 && matches[0].confidence > 0.9) {

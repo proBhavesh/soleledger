@@ -3,6 +3,7 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { checkTransactionLimit, incrementTransactionCount } from "@/lib/services/usage-tracking";
 import {
   createTransactionWithJournalSchema,
   type CreateTransactionWithJournalData,
@@ -41,6 +42,12 @@ export async function createTransactionWithJournal(data: CreateTransactionWithJo
       return { success: false, error: "Access denied to this business" };
     }
 
+    // Check usage limits
+    const usageCheck = await checkTransactionLimit(session.user.id, validatedData.businessId);
+    if (!usageCheck.allowed) {
+      return { success: false, error: usageCheck.message || "Transaction limit exceeded" };
+    }
+
     // Calculate total amount from journal entries
     const totalAmount = validatedData.journalEntries.reduce(
       (sum, entry) => sum + Math.max(entry.debitAmount, entry.creditAmount), 
@@ -77,6 +84,9 @@ export async function createTransactionWithJournal(data: CreateTransactionWithJo
 
       return transaction;
     });
+
+    // Increment usage count
+    await incrementTransactionCount(validatedData.businessId);
 
     return { success: true, transaction: result };
   } catch (error) {

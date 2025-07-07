@@ -7,6 +7,7 @@ import { SubscriptionSettings } from "@/components/dashboard/settings/subscripti
 import { ChartOfAccountsSettings } from "@/components/dashboard/settings/chart-of-accounts-settings";
 import { TeamSettings } from "@/components/dashboard/settings/team-settings";
 import { useBusinessContext } from "@/lib/contexts/business-context";
+import { UsageTracker } from "@/components/dashboard/settings/usage-tracker";
 
 export default function SettingsPage() {
   const { selectedBusiness, permissions } = useBusinessContext();
@@ -54,6 +55,7 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="billing" className="space-y-4">
+          <UsageTracker />
           <SubscriptionSettings />
         </TabsContent>
       </Tabs>

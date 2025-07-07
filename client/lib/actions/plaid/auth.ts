@@ -9,6 +9,7 @@ import {
   PLAID_REDIRECT_URI,
 } from "@/lib/plaid/client";
 import { Products, CountryCode, LinkTokenCreateRequest } from "plaid";
+import { checkBankAccountLimit } from "@/lib/services/usage-tracking";
 import { revalidatePath } from "next/cache";
 import { PlaidErrorDetails, PlaidErrorObject } from "@/lib/types";
 
@@ -146,6 +147,12 @@ export async function exchangePublicToken(
   }
 
   const userId = session.user.id;
+
+  // Check bank account limit before proceeding
+  const usageCheck = await checkBankAccountLimit(userId, businessId);
+  if (!usageCheck.allowed) {
+    throw new Error(usageCheck.message || "Bank account limit exceeded");
+  }
 
   try {
     // Exchange public token for access token

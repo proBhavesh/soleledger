@@ -82,9 +82,6 @@ export async function POST(req: NextRequest) {
                 amount: price.unit_amount ? price.unit_amount / 100 : null,
                 currency: price.currency?.toUpperCase() || "USD",
                 interval: price.recurring?.interval || "month",
-                trialEndsAt: subscription.trial_end
-                  ? new Date(subscription.trial_end * 1000)
-                  : null,
                 startsAt: new Date(),
                 endsAt: subscription.cancel_at
                   ? new Date(subscription.cancel_at * 1000)
@@ -105,9 +102,6 @@ export async function POST(req: NextRequest) {
                 amount: price.unit_amount ? price.unit_amount / 100 : null,
                 currency: price.currency?.toUpperCase() || "USD",
                 interval: price.recurring?.interval || "month",
-                trialEndsAt: subscription.trial_end
-                  ? new Date(subscription.trial_end * 1000)
-                  : null,
                 startsAt: new Date(),
                 endsAt: subscription.cancel_at
                   ? new Date(subscription.cancel_at * 1000)
@@ -253,12 +247,7 @@ export async function POST(req: NextRequest) {
                 ? "CANCELLED"
                 : subscription.status === "past_due"
                 ? "PAST_DUE"
-                : subscription.status === "trialing"
-                ? "TRIAL"
                 : "INACTIVE",
-            trialEndsAt: subscription.trial_end
-              ? new Date(subscription.trial_end * 1000)
-              : null,
             endsAt: subscription.cancel_at
               ? new Date(subscription.cancel_at * 1000)
               : null,

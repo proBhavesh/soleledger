@@ -23,7 +23,7 @@ export default async function DashboardLayout({
     where: {
       userId: session.user.id,
       status: {
-        in: ["ACTIVE", "TRIAL", "PAST_DUE"],
+        in: ["ACTIVE", "PAST_DUE"],
       },
     },
   });

@@ -11,20 +11,25 @@ import { createDefaultChartOfAccounts } from "./chart-of-accounts-actions";
 import { sendEmail } from "@/lib/email/resend";
 import { PasswordResetEmail } from "@/lib/email/templates/password-reset";
 import { z } from "zod";
+import {
+  type PasswordResetResponse,
+  type PasswordResetValidationResponse,
+  AUTH_ERROR_MESSAGES,
+} from "@/lib/types/auth-actions";
 
 export async function loginAction(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
 
   if (!email || !password) {
-    return { error: "Invalid credentials" };
+    return { error: AUTH_ERROR_MESSAGES.invalidCredentials };
   }
 
   // Validate input
   const validatedFields = userAuthSchema.safeParse({ email, password });
 
   if (!validatedFields.success) {
-    return { error: "Invalid credentials" };
+    return { error: AUTH_ERROR_MESSAGES.invalidCredentials };
   }
 
   try {
@@ -33,7 +38,7 @@ export async function loginAction(formData: FormData) {
     return { success: true };
   } catch (error) {
     console.error("Login error:", error);
-    return { error: "Authentication failed" };
+    return { error: AUTH_ERROR_MESSAGES.invalidCredentials };
   }
 }
 
@@ -57,7 +62,7 @@ export async function registerAction(formData: FormData) {
   });
 
   if (!validatedFields.success) {
-    return { error: "Invalid fields" };
+    return { error: AUTH_ERROR_MESSAGES.serverError };
   }
 
   // Check if user already exists
@@ -68,7 +73,7 @@ export async function registerAction(formData: FormData) {
   });
 
   if (existingUser) {
-    return { error: "Email already in use" };
+    return { error: AUTH_ERROR_MESSAGES.emailExists };
   }
 
   // Hash password
@@ -129,7 +134,7 @@ export async function registerAction(formData: FormData) {
         console.error("Business profile creation error:", profileError);
         // Clean up user if profile creation fails
         await db.user.delete({ where: { id: user.id } });
-        return { error: "Failed to create business profile" };
+        return { error: AUTH_ERROR_MESSAGES.businessCreationFailed };
       }
     } else if (role === "ACCOUNTANT") {
       try {
@@ -143,7 +148,7 @@ export async function registerAction(formData: FormData) {
         console.error("Accountant profile creation error:", profileError);
         // Clean up user if profile creation fails
         await db.user.delete({ where: { id: user.id } });
-        return { error: "Failed to create accountant profile" };
+        return { error: AUTH_ERROR_MESSAGES.serverError };
       }
     }
 
@@ -155,7 +160,7 @@ export async function registerAction(formData: FormData) {
     };
   } catch (error) {
     console.error("Registration error:", error);
-    return { error: "Failed to create account" };
+    return { error: AUTH_ERROR_MESSAGES.serverError };
   }
 }
 
@@ -172,7 +177,7 @@ const resetPasswordSchema = z.object({
 /**
  * Request a password reset link
  */
-export async function requestPasswordReset(email: string): Promise<{ success: boolean; error?: string }> {
+export async function requestPasswordReset(email: string): Promise<PasswordResetResponse> {
   try {
     // Validate email
     const validated = requestPasswordResetSchema.parse({ email });
@@ -198,7 +203,7 @@ export async function requestPasswordReset(email: string): Promise<{ success: bo
     });
 
     if (recentRequest) {
-      return { success: false, error: "Please wait 5 minutes before requesting another reset link" };
+      return { success: false, error: AUTH_ERROR_MESSAGES.serverError };
     }
 
     // Create password reset token
@@ -228,23 +233,23 @@ export async function requestPasswordReset(email: string): Promise<{ success: bo
 
     if (!emailResult.success) {
       console.error("Failed to send password reset email:", emailResult.error);
-      return { success: false, error: "Failed to send reset email. Please try again." };
+      return { success: false, error: AUTH_ERROR_MESSAGES.serverError };
     }
 
     return { success: true };
   } catch (error) {
     console.error("Password reset request error:", error);
     if (error instanceof z.ZodError) {
-      return { success: false, error: "Invalid email address" };
+      return { success: false, error: AUTH_ERROR_MESSAGES.userNotFound };
     }
-    return { success: false, error: "Failed to process request" };
+    return { success: false, error: AUTH_ERROR_MESSAGES.serverError };
   }
 }
 
 /**
  * Validate a password reset token
  */
-export async function validatePasswordResetToken(token: string): Promise<{ valid: boolean; error?: string }> {
+export async function validatePasswordResetToken(token: string): Promise<PasswordResetValidationResponse> {
   try {
     const resetToken = await db.passwordResetToken.findUnique({
       where: { token },
@@ -252,28 +257,28 @@ export async function validatePasswordResetToken(token: string): Promise<{ valid
     });
 
     if (!resetToken) {
-      return { valid: false, error: "Invalid token" };
+      return { valid: false, error: AUTH_ERROR_MESSAGES.invalidToken };
     }
 
     if (resetToken.usedAt) {
-      return { valid: false, error: "Token already used" };
+      return { valid: false, error: AUTH_ERROR_MESSAGES.invalidToken };
     }
 
     if (new Date() > resetToken.expiresAt) {
-      return { valid: false, error: "Token expired" };
+      return { valid: false, error: AUTH_ERROR_MESSAGES.tokenExpired };
     }
 
     return { valid: true };
   } catch (error) {
     console.error("Token validation error:", error);
-    return { valid: false, error: "Failed to validate token" };
+    return { valid: false, error: AUTH_ERROR_MESSAGES.serverError };
   }
 }
 
 /**
  * Reset password with token
  */
-export async function resetPassword(data: { token: string; password: string }): Promise<{ success: boolean; error?: string }> {
+export async function resetPassword(data: { token: string; password: string }): Promise<PasswordResetResponse> {
   try {
     const validated = resetPasswordSchema.parse(data);
 
@@ -284,15 +289,15 @@ export async function resetPassword(data: { token: string; password: string }): 
     });
 
     if (!resetToken) {
-      return { success: false, error: "Invalid reset link" };
+      return { success: false, error: AUTH_ERROR_MESSAGES.invalidToken };
     }
 
     if (resetToken.usedAt) {
-      return { success: false, error: "This reset link has already been used" };
+      return { success: false, error: AUTH_ERROR_MESSAGES.invalidToken };
     }
 
     if (new Date() > resetToken.expiresAt) {
-      return { success: false, error: "This reset link has expired" };
+      return { success: false, error: AUTH_ERROR_MESSAGES.tokenExpired };
     }
 
     // Hash new password
@@ -318,8 +323,8 @@ export async function resetPassword(data: { token: string; password: string }): 
   } catch (error) {
     console.error("Password reset error:", error);
     if (error instanceof z.ZodError) {
-      return { success: false, error: "Invalid password format" };
+      return { success: false, error: AUTH_ERROR_MESSAGES.weakPassword };
     }
-    return { success: false, error: "Failed to reset password" };
+    return { success: false, error: AUTH_ERROR_MESSAGES.serverError };
   }
 }

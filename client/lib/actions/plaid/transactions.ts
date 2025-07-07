@@ -13,6 +13,7 @@ import {
   shouldIgnoreTransaction,
   mapPlaidCategoryWithMerchant 
 } from "@/lib/plaid/category-mapper";
+import { checkTransactionLimit, incrementTransactionCount } from "@/lib/services/usage-tracking";
 import { revalidatePath } from "next/cache";
 
 /**
@@ -60,6 +61,12 @@ export async function syncTransactionsEnhanced(
 
     if (!bankAccount) {
       throw new Error("Bank account not found");
+    }
+
+    // Get the session for user ID
+    const session = await auth();
+    if (!session?.user?.id) {
+      throw new Error("Unauthorized");
     }
 
     while (hasMore) {
@@ -140,6 +147,14 @@ export async function syncTransactionsEnhanced(
             }
           }
 
+          // Check usage limit before creating
+          const usageCheck = await checkTransactionLimit(session.user.id, businessId);
+          if (!usageCheck.allowed) {
+            // Stop processing if limit reached
+            console.warn(`Transaction limit reached for business ${businessId}: ${usageCheck.message}`);
+            break;
+          }
+
           // Create new transaction with enriched data
           await db.transaction.create({
             data: {
@@ -165,6 +180,9 @@ export async function syncTransactionsEnhanced(
                 : undefined,
             },
           });
+
+          // Increment usage count
+          await incrementTransactionCount(businessId);
         }
       }
 

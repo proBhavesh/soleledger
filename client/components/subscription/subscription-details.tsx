@@ -43,8 +43,8 @@ export default function SubscriptionDetails() {
     const fetchSubscription = async () => {
       try {
         const result = await getUserSubscriptionAction();
-        if (result.subscription) {
-          setSubscription(result.subscription as unknown as Subscription);
+        if (result.success && result.data) {
+          setSubscription(result.data as unknown as Subscription);
         }
       } catch (error) {
         console.error("Error fetching subscription:", error);

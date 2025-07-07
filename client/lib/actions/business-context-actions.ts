@@ -10,6 +10,10 @@ import {
   canManageDocuments,
   canManageSettings
 } from "@/lib/types/business-access";
+import {
+  type BusinessContextResponse,
+  BUSINESS_CONTEXT_ERROR_MESSAGES,
+} from "@/lib/types/business-context";
 
 export interface UserBusiness {
   id: string;
@@ -39,7 +43,7 @@ export async function getUserBusinesses(): Promise<GetUserBusinessesResponse> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return { success: false, error: "Unauthorized" };
+      return { success: false, error: BUSINESS_CONTEXT_ERROR_MESSAGES.unauthorized };
     }
 
     const userId = session.user.id;
@@ -138,7 +142,7 @@ export async function getUserBusinesses(): Promise<GetUserBusinessesResponse> {
     return { success: true, businesses };
   } catch (error) {
     console.error("Error getting user businesses:", error);
-    return { success: false, error: "Failed to get businesses" };
+    return { success: false, error: BUSINESS_CONTEXT_ERROR_MESSAGES.serverError };
   }
 }
 
@@ -149,18 +153,18 @@ export async function getBusinessDetails(businessId: string) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return { success: false, error: "Unauthorized" };
+      return { success: false, error: BUSINESS_CONTEXT_ERROR_MESSAGES.unauthorized };
     }
 
     // Verify user has access to this business
     const userBusinesses = await getUserBusinesses();
     if (!userBusinesses.success || !userBusinesses.businesses) {
-      return { success: false, error: "Failed to verify access" };
+      return { success: false, error: BUSINESS_CONTEXT_ERROR_MESSAGES.serverError };
     }
 
     const hasAccess = userBusinesses.businesses.some(b => b.id === businessId);
     if (!hasAccess) {
-      return { success: false, error: "Access denied to this business" };
+      return { success: false, error: BUSINESS_CONTEXT_ERROR_MESSAGES.permissionDenied };
     }
 
     const business = await db.business.findUnique({
@@ -173,13 +177,13 @@ export async function getBusinessDetails(businessId: string) {
     });
 
     if (!business) {
-      return { success: false, error: "Business not found" };
+      return { success: false, error: BUSINESS_CONTEXT_ERROR_MESSAGES.businessNotFound };
     }
 
     return { success: true, business };
   } catch (error) {
     console.error("Error getting business details:", error);
-    return { success: false, error: "Failed to get business details" };
+    return { success: false, error: BUSINESS_CONTEXT_ERROR_MESSAGES.serverError };
   }
 }
 
@@ -255,11 +259,11 @@ export async function getCurrentBusinessId(): Promise<string | null> {
 /**
  * Set the selected business ID in a cookie for accountants
  */
-export async function setSelectedBusinessId(businessId: string): Promise<{ success: boolean; error?: string }> {
+export async function setSelectedBusinessId(businessId: string): Promise<BusinessContextResponse> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return { success: false, error: "Unauthorized" };
+      return { success: false, error: BUSINESS_CONTEXT_ERROR_MESSAGES.unauthorized };
     }
 
     const userId = session.user.id;
@@ -280,7 +284,7 @@ export async function setSelectedBusinessId(businessId: string): Promise<{ succe
     });
     
     if (!hasAccess && !isOwner) {
-      return { success: false, error: "Access denied to this business" };
+      return { success: false, error: BUSINESS_CONTEXT_ERROR_MESSAGES.permissionDenied };
     }
     
     // Set cookie
@@ -296,6 +300,6 @@ export async function setSelectedBusinessId(businessId: string): Promise<{ succe
     return { success: true };
   } catch (error) {
     console.error("Error setting selected business ID:", error);
-    return { success: false, error: "Failed to set business selection" };
+    return { success: false, error: BUSINESS_CONTEXT_ERROR_MESSAGES.serverError };
   }
 }

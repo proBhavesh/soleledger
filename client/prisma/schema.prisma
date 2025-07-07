@@ -126,6 +126,7 @@ model Business {
   tasks        Task[]
   transactions Transaction[]
   invitations  TeamInvitation[]
+  usage        Usage[]
 }
 
 model BusinessMember {
@@ -177,19 +178,22 @@ model TeamInvitation {
 model Subscription {
   id                   String             @id @default(cuid())
   userId               String
-  status               SubscriptionStatus @default(TRIAL)
+  status               SubscriptionStatus @default(FREE)
+  plan                 String?            @default("free")
   planId               String?
   planName             String?
   priceId              String?
   amount               Float?
-  currency             String?            @default("USD")
+  currency             String?            @default("CAD")
   interval             String?
   stripeCustomerId     String?
   stripeSubscriptionId String?
-  trialEndsAt          DateTime?
   startsAt             DateTime?
   endsAt               DateTime?
   canceledAt           DateTime?
+  transactionLimit     Int?               // null means unlimited
+  bankAccountLimit     Int?               // null means unlimited
+  documentUploadLimit  Int?               // null means unlimited
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
   payments             Payment[]
@@ -203,13 +207,27 @@ model Payment {
   subscriptionId  String
   status          PaymentStatus @default(PENDING)
   amount          Float
-  currency        String        @default("USD")
+  currency        String        @default("CAD")
   stripePaymentId String?
   stripeInvoiceId String?
   paymentDate     DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   subscription    Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+}
+
+model Usage {
+  id                  String   @id @default(cuid())
+  businessId          String
+  month               DateTime // First day of the month
+  transactionCount    Int      @default(0)
+  documentUploadCount Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  business            Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  @@unique([businessId, month])
+  @@index([businessId])
 }
 
 model BankAccount {
@@ -221,7 +239,7 @@ model BankAccount {
   routingNumber    String?
   institution      String?
   balance          Float?
-  currency         String        @default("USD")
+  currency         String        @default("CAD")
   plaidItemId      String?
   plaidAccessToken String?
   lastSync         DateTime?
@@ -270,7 +288,7 @@ model Transaction {
   categoryId    String?
   type          TransactionType
   amount        Float
-  currency      String          @default("USD")
+  currency      String          @default("CAD")
   date          DateTime
   description   String?
   notes         String?
@@ -463,7 +481,7 @@ enum SubscriptionStatus {
   INACTIVE
   CANCELLED
   PAST_DUE
-  TRIAL
+  FREE
 }
 
 enum PaymentStatus {

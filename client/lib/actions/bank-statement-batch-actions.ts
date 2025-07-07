@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma";
 import { JournalEntryFactory } from "@/lib/accounting/journal-entry-factory";
+import { checkTransactionLimit, incrementTransactionCount } from "@/lib/services/usage-tracking";
 import type { 
   BatchImportTransaction, 
   ChartOfAccountsMap,
@@ -164,6 +165,15 @@ export async function batchImportBankStatementTransactions(request: {
     };
   }
 
+  // Check usage limits
+  const usageCheck = await checkTransactionLimit(session.user.id, businessId, selectedTransactions.length);
+  if (!usageCheck.allowed) {
+    return {
+      success: false,
+      error: usageCheck.message || `Transaction limit exceeded. You can add ${usageCheck.remainingUsage} more transactions this month.`,
+    };
+  }
+
   try {
     // Verify business access
     const businessMember = await db.businessMember.findFirst({
@@ -314,6 +324,9 @@ export async function batchImportBankStatementTransactions(request: {
           },
         },
       });
+      
+      // Increment usage count
+      await incrementTransactionCount(businessId, createdTransactions.length);
       
       return createdTransactions.length;
     });

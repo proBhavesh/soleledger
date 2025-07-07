@@ -15,6 +15,7 @@ import {
 import { getCurrentBusinessId } from "./business-context-actions";
 import { batchImportBankStatementTransactions } from "./bank-statement-batch-actions";
 import { subDays, addDays } from "date-fns";
+import { checkDocumentUploadLimit, incrementDocumentUploadCount } from "@/lib/services/usage-tracking";
 
 // Validation schemas
 const uploadRequestSchema = z.object({
@@ -140,6 +141,12 @@ export async function processBankStatement(request: {
       return { success: false, error: "No business found" };
     }
 
+    // Check document upload limit
+    const usageCheck = await checkDocumentUploadLimit(session.user.id, businessId);
+    if (!usageCheck.allowed) {
+      return { success: false, error: usageCheck.message || "Document upload limit exceeded" };
+    }
+
     // Create document record
     const document = await db.document.create({
       data: {
@@ -178,6 +185,9 @@ export async function processBankStatement(request: {
           notes: extractedData.notes,
         },
       });
+
+      // Increment document upload count after successful processing
+      await incrementDocumentUploadCount(businessId);
 
       // Return processed data with duplicate info
       return {

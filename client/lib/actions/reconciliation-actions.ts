@@ -9,6 +9,7 @@ import {
   updateReconciliationSchema,
   bulkReconcileSchema,
   type ReconciliationSummary,
+  type ReconciliationSummaryResponse,
   type UnmatchedTransaction,
   type MatchedTransaction,
   type ReconciliationActionResponse,
@@ -17,6 +18,7 @@ import {
   type GetRecentlyMatchedTransactionsResponse,
   type AutoReconcileResponse,
   type BulkReconcileResponse,
+  RECONCILIATION_ERROR_MESSAGES,
 } from "@/lib/types/reconciliation";
 
 /**
@@ -25,11 +27,11 @@ import {
 export async function getReconciliationSummary(
   startDate?: Date,
   endDate?: Date
-): Promise<{ success: boolean; data?: ReconciliationSummary; error?: string }> {
+): Promise<ReconciliationSummaryResponse> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return { success: false, error: "Unauthorized" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.unauthorized };
     }
 
     // Get user's business (works for both owners and accountants)
@@ -38,7 +40,7 @@ export async function getReconciliationSummary(
     });
 
     if (!business) {
-      return { success: false, error: "No business found" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.businessNotFound };
     }
 
     // Default to last 90 days if no date range provided
@@ -107,7 +109,7 @@ export async function getReconciliationSummary(
     return { success: true, data: summary };
   } catch (error) {
     console.error("Error getting reconciliation summary:", error);
-    return { success: false, error: "Failed to get reconciliation summary" };
+    return { success: false, error: RECONCILIATION_ERROR_MESSAGES.serverError };
   }
 }
 
@@ -121,7 +123,7 @@ export async function getUnmatchedTransactions(
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return { success: false, error: "Unauthorized" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.unauthorized };
     }
 
     // Get user's business (works for both owners and accountants)
@@ -130,7 +132,7 @@ export async function getUnmatchedTransactions(
     });
 
     if (!business) {
-      return { success: false, error: "No business found" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.businessNotFound };
     }
 
     // Get unmatched transactions
@@ -193,7 +195,7 @@ export async function getUnmatchedTransactions(
     return { success: true, data: unmatchedTransactions, total };
   } catch (error) {
     console.error("Error getting unmatched transactions:", error);
-    return { success: false, error: "Failed to get unmatched transactions" };
+    return { success: false, error: RECONCILIATION_ERROR_MESSAGES.serverError };
   }
 }
 
@@ -206,7 +208,7 @@ export async function updateReconciliationStatus(
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return { success: false, error: "Unauthorized" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.unauthorized };
     }
 
     const validatedData = updateReconciliationSchema.parse(data);
@@ -221,7 +223,7 @@ export async function updateReconciliationStatus(
     });
 
     if (!transaction) {
-      return { success: false, error: "Transaction not found or access denied" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.transactionNotFound };
     }
 
     // Update or create reconciliation status
@@ -251,9 +253,9 @@ export async function updateReconciliationStatus(
   } catch (error) {
     console.error("Error updating reconciliation status:", error);
     if (error instanceof z.ZodError) {
-      return { success: false, error: "Invalid data provided" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.serverError };
     }
-    return { success: false, error: "Failed to update reconciliation status" };
+    return { success: false, error: RECONCILIATION_ERROR_MESSAGES.serverError };
   }
 }
 
@@ -264,7 +266,7 @@ export async function autoReconcileTransactions(): Promise<AutoReconcileResponse
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return { success: false, error: "Unauthorized" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.unauthorized };
     }
 
     // Get user's business (works for both owners and accountants)
@@ -273,7 +275,7 @@ export async function autoReconcileTransactions(): Promise<AutoReconcileResponse
     });
 
     if (!business) {
-      return { success: false, error: "No business found" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.businessNotFound };
     }
 
     // Get transactions without reconciliation status that have high-confidence matches
@@ -338,7 +340,7 @@ export async function autoReconcileTransactions(): Promise<AutoReconcileResponse
     return { success: true, data: { processed, matched } };
   } catch (error) {
     console.error("Error auto-reconciling transactions:", error);
-    return { success: false, error: "Failed to auto-reconcile transactions" };
+    return { success: false, error: RECONCILIATION_ERROR_MESSAGES.serverError };
   }
 }
 
@@ -351,7 +353,7 @@ export async function bulkReconcileTransactions(
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return { success: false, error: "Unauthorized" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.unauthorized };
     }
 
     const validatedData = bulkReconcileSchema.parse(data);
@@ -384,7 +386,7 @@ export async function bulkReconcileTransactions(
     });
 
     if (transactions.length !== transactionIds.length) {
-      return { success: false, error: "Some transactions not found or access denied" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.transactionNotFound };
     }
 
     // Bulk create reconciliation statuses
@@ -407,9 +409,9 @@ export async function bulkReconcileTransactions(
   } catch (error) {
     console.error("Error bulk reconciling transactions:", error);
     if (error instanceof z.ZodError) {
-      return { success: false, error: "Invalid data provided" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.serverError };
     }
-    return { success: false, error: "Failed to bulk reconcile transactions" };
+    return { success: false, error: RECONCILIATION_ERROR_MESSAGES.serverError };
   }
 }
 
@@ -423,7 +425,7 @@ export async function getAvailableDocuments(
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return { success: false, error: "Unauthorized" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.unauthorized };
     }
 
     // Get user's business (works for both owners and accountants)
@@ -432,7 +434,7 @@ export async function getAvailableDocuments(
     });
 
     if (!business) {
-      return { success: false, error: "No business found" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.businessNotFound };
     }
 
     // Get all processed documents
@@ -487,7 +489,7 @@ export async function getAvailableDocuments(
     return { success: true, data: documentsWithScores };
   } catch (error) {
     console.error("Error getting available documents:", error);
-    return { success: false, error: "Failed to get available documents" };
+    return { success: false, error: RECONCILIATION_ERROR_MESSAGES.serverError };
   }
 }
 
@@ -502,7 +504,7 @@ export async function manuallyMatchTransaction(
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return { success: false, error: "Unauthorized" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.unauthorized };
     }
 
     // Verify transaction and document belong to user's business
@@ -522,7 +524,7 @@ export async function manuallyMatchTransaction(
     });
 
     if (!transaction || !document) {
-      return { success: false, error: "Transaction or document not found or access denied" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.transactionNotFound };
     }
 
     // Create or update the match
@@ -580,7 +582,7 @@ export async function manuallyMatchTransaction(
     return { success: true };
   } catch (error) {
     console.error("Error manually matching transaction:", error);
-    return { success: false, error: "Failed to match transaction" };
+    return { success: false, error: RECONCILIATION_ERROR_MESSAGES.matchFailed };
   }
 }
 
@@ -593,7 +595,7 @@ export async function unmatchTransaction(
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return { success: false, error: "Unauthorized" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.unauthorized };
     }
 
     // Verify transaction belongs to user's business
@@ -609,7 +611,7 @@ export async function unmatchTransaction(
     });
 
     if (!transaction) {
-      return { success: false, error: "Transaction not found" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.transactionNotFound };
     }
 
     const documentId = transaction.reconciliation?.documentId;
@@ -642,7 +644,7 @@ export async function unmatchTransaction(
     return { success: true };
   } catch (error) {
     console.error("Error unmatching transaction:", error);
-    return { success: false, error: "Failed to unmatch transaction" };
+    return { success: false, error: RECONCILIATION_ERROR_MESSAGES.unmatchFailed };
   }
 }
 
@@ -655,7 +657,7 @@ export async function getRecentlyMatchedTransactions(
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return { success: false, error: "Unauthorized" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.unauthorized };
     }
 
     // Get user's business (works for both owners and accountants)
@@ -664,7 +666,7 @@ export async function getRecentlyMatchedTransactions(
     });
 
     if (!business) {
-      return { success: false, error: "No business found" };
+      return { success: false, error: RECONCILIATION_ERROR_MESSAGES.businessNotFound };
     }
 
     // Get recently matched transactions
@@ -729,6 +731,6 @@ export async function getRecentlyMatchedTransactions(
     return { success: true, data: matchedTransactions };
   } catch (error) {
     console.error("Error getting recently matched transactions:", error);
-    return { success: false, error: "Failed to get matched transactions" };
+    return { success: false, error: RECONCILIATION_ERROR_MESSAGES.serverError };
   }
 }

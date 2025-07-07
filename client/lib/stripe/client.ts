@@ -2,44 +2,46 @@
 // No server-side secrets here!
 
 export const PLANS = {
-    BASIC: {
-        name: 'Basic',
-        description: 'For small businesses just getting started',
-        price: 39,
-        priceId: process.env.NEXT_PUBLIC_STRIPE_BASIC_PRICE_ID,
+    FREE: {
+        name: 'Free',
+        description: 'Perfect for getting started',
+        price: 0,
+        priceId: null,
         features: [
-            'Unlimited transactions',
+            'Up to 100 transactions per month',
+            '1 bank account',
+            'Up to 10 document uploads per month',
             'Basic reporting',
-            'Up to 3 team members',
-            'Email support',
+            'Community support',
         ],
     },
     PROFESSIONAL: {
         name: 'Professional',
-        description: 'For growing businesses with more needs',
-        price: 59,
+        description: 'For growing businesses',
+        price: 19,
         priceId: process.env.NEXT_PUBLIC_STRIPE_PROFESSIONAL_PRICE_ID,
         features: [
-            'Everything in Basic',
+            'Up to 1,000 transactions per month',
+            'Up to 5 bank accounts',
+            'Up to 100 document uploads per month',
             'Advanced reporting',
-            'Up to 10 team members',
-            'Priority support',
-            'Data exports',
-            'Custom categories',
+            'Priority email support',
+            'Export to Excel/CSV',
         ],
     },
-    ENTERPRISE: {
-        name: 'Enterprise',
-        description: 'Custom solutions for larger businesses',
-        price: null, // Custom pricing
-        priceId: null,
+    BUSINESS: {
+        name: 'Business',
+        description: 'For established businesses',
+        price: 49,
+        priceId: process.env.NEXT_PUBLIC_STRIPE_BUSINESS_PRICE_ID,
         features: [
-            'Everything in Professional',
-            'Unlimited team members',
-            'Dedicated account manager',
+            'Unlimited transactions',
+            'Unlimited bank accounts',
+            'Unlimited document uploads',
+            'All reporting features',
+            'Priority support',
+            'API access',
             'Custom integrations',
-            'Advanced analytics',
-            'Enterprise-grade security',
         ],
     },
 };

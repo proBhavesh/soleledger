@@ -33,7 +33,6 @@ export async function createStripeCheckoutSession(params: {
         success_url: successUrl || `${process.env.NEXTAUTH_URL}/dashboard?subscription=success`,
         cancel_url: cancelUrl || `${process.env.NEXTAUTH_URL}/pricing?subscription=canceled`,
         subscription_data: {
-            trial_period_days: 30,
             metadata: {
                 userId,
                 planId,

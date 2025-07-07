@@ -155,6 +155,12 @@ export interface ReconciliationActionResponse {
   error?: string;
 }
 
+export interface ReconciliationSummaryResponse {
+  success: boolean;
+  data?: ReconciliationSummary;
+  error?: string;
+}
+
 export interface GetUnmatchedTransactionsResponse {
   success: boolean;
   data?: UnmatchedTransaction[];
@@ -210,3 +216,20 @@ export function isUnmatched(status: string): boolean {
 export function isPendingReview(status: string): boolean {
   return status === "PENDING_REVIEW";
 }
+
+// =======================================================
+// Error Messages
+// =======================================================
+
+export const RECONCILIATION_ERROR_MESSAGES = {
+  unauthorized: "You must be logged in to perform this action",
+  businessNotFound: "No business context found",
+  transactionNotFound: "Transaction not found or access denied",
+  documentNotFound: "Document not found or access denied",
+  alreadyMatched: "This transaction is already matched to a document",
+  matchFailed: "Failed to match transaction and document",
+  unmatchFailed: "Failed to unmatch transaction and document",
+  serverError: "An error occurred during reconciliation",
+  noUnmatched: "No unmatched transactions found",
+  invalidConfidence: "Invalid confidence score",
+} as const;

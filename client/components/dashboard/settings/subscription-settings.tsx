@@ -25,62 +25,53 @@ import {
   getBillingHistory,
   upgradeSubscription,
   cancelSubscription,
+} from "@/lib/actions/subscription-actions";
+import {
   type SubscriptionData,
   type BillingHistoryItem,
-} from "@/lib/actions/subscription-actions";
+} from "@/lib/types/subscription-actions";
 
 const planFeatures = {
-  trial: {
-    name: "Free Trial",
+  free: {
+    name: "Free",
     price: 0,
     features: [
-      "Up to 50 transactions",
-      "Basic receipt scanning",
-      "Manual reconciliation",
-      "Email support",
+      "Up to 100 transactions per month",
+      "1 bank account",
+      "Up to 10 document uploads per month",
+      "Basic reporting",
+      "Community support",
     ],
     color: "bg-gray-100 text-gray-800",
     icon: Calendar,
   },
-  basic: {
-    name: "Basic",
-    price: 29,
+  professional: {
+    name: "Professional",
+    price: 19,
     features: [
-      "Up to 500 transactions",
-      "AI receipt processing",
-      "Basic reconciliation",
-      "Email support",
-      "Monthly reports",
+      "Up to 1,000 transactions per month",
+      "Up to 5 bank accounts",
+      "Up to 100 document uploads per month",
+      "Advanced reporting",
+      "Priority email support",
+      "Export to Excel/CSV",
     ],
     color: "bg-blue-100 text-blue-800",
     icon: Zap,
   },
-  pro: {
-    name: "Professional",
-    price: 79,
+  business: {
+    name: "Business",
+    price: 49,
     features: [
       "Unlimited transactions",
-      "Advanced AI processing",
-      "Auto reconciliation",
+      "Unlimited bank accounts",
+      "Unlimited document uploads",
+      "All reporting features",
       "Priority support",
-      "Advanced reports",
       "API access",
+      "Custom integrations",
     ],
     color: "bg-purple-100 text-purple-800",
-    icon: Crown,
-  },
-  enterprise: {
-    name: "Enterprise",
-    price: 199,
-    features: [
-      "Everything in Pro",
-      "Multi-business support",
-      "Team collaboration",
-      "Custom integrations",
-      "Dedicated support",
-      "SLA guarantee",
-    ],
-    color: "bg-gold-100 text-gold-800",
     icon: Crown,
   },
 };
@@ -135,8 +126,13 @@ export function SubscriptionSettings() {
       const result = await upgradeSubscription({ plan: newPlan });
 
       if (result.success) {
-        toast.success("Subscription updated successfully");
-        await loadSubscriptionData(); // Reload data
+        if ('checkoutUrl' in result && result.checkoutUrl) {
+          // Redirect to Stripe checkout
+          window.location.href = result.checkoutUrl;
+        } else {
+          toast.success("Subscription updated successfully");
+          await loadSubscriptionData(); // Reload data
+        }
       } else {
         toast.error(result.error || "Failed to update subscription");
       }
