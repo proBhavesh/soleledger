@@ -77,4 +77,5 @@ export const SUBSCRIPTION_ERROR_MESSAGES = {
   stripeError: "Payment processing error. Please try again.",
   cancelFailed: "Unable to cancel subscription. Please contact support.",
   upgradeFailed: "Unable to process upgrade. Please try again.",
+  userNotReady: "Your account is being set up. Please wait a moment and try again.",
 } as const;

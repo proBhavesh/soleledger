@@ -126,44 +126,52 @@ export const authOptions: NextAuthOptions = {
               cookieStore.delete("pending-role");
             }
             
-            // Create new user with Google OAuth
-            const newUser = await db.user.create({
-              data: {
-                email: user.email!,
-                name: user.name || "",
-                image: user.image,
-                role: role,
-                emailVerified: new Date(), // Google emails are pre-verified
-              },
+            // Use a transaction to ensure all operations complete atomically
+            await db.$transaction(async (tx) => {
+              // Create new user with Google OAuth
+              const createdUser = await tx.user.create({
+                data: {
+                  email: user.email!,
+                  name: user.name || "",
+                  image: user.image,
+                  role: role,
+                  emailVerified: new Date(), // Google emails are pre-verified
+                },
+              });
+
+              // Only create business-related records if the role is BUSINESS_OWNER
+              if (role === "BUSINESS_OWNER") {
+                // Create business profile for business owners
+                await tx.businessProfile.create({
+                  data: {
+                    userId: createdUser.id,
+                    businessName: `${user.name}'s Business`,
+                  },
+                });
+
+                // Create a default business
+                await tx.business.create({
+                  data: {
+                    name: `${user.name}'s Business`,
+                    ownerId: createdUser.id,
+                    industry: "Other",
+                  },
+                });
+              } else if (role === "ACCOUNTANT") {
+                // Create accountant profile
+                await tx.accountantProfile.create({
+                  data: {
+                    userId: createdUser.id,
+                    firmName: `${user.name}'s Accounting Firm`,
+                  },
+                });
+              }
+              
+              return createdUser;
             });
-
-            // Only create business-related records if the role is BUSINESS_OWNER
-            if (role === "BUSINESS_OWNER") {
-              // Create business profile for business owners
-              await db.businessProfile.create({
-                data: {
-                  userId: newUser.id,
-                  businessName: `${user.name}'s Business`,
-                },
-              });
-
-              // Create a default business
-              await db.business.create({
-                data: {
-                  name: `${user.name}'s Business`,
-                  ownerId: newUser.id,
-                  industry: "Other",
-                },
-              });
-            } else if (role === "ACCOUNTANT") {
-              // Create accountant profile
-              await db.accountantProfile.create({
-                data: {
-                  userId: newUser.id,
-                  firmName: `${user.name}'s Accounting Firm`,
-                },
-              });
-            }
+            
+            // Add a small delay to ensure transaction is committed
+            await new Promise(resolve => setTimeout(resolve, 100));
           }
 
           return true;

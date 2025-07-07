@@ -18,7 +18,7 @@ export const PLANS = {
     PROFESSIONAL: {
         name: 'Professional',
         description: 'For growing businesses',
-        price: 19,
+        price: 39,
         priceId: process.env.NEXT_PUBLIC_STRIPE_PROFESSIONAL_PRICE_ID,
         features: [
             'Up to 1,000 transactions per month',
@@ -32,7 +32,7 @@ export const PLANS = {
     BUSINESS: {
         name: 'Business',
         description: 'For established businesses',
-        price: 49,
+        price: 59,
         priceId: process.env.NEXT_PUBLIC_STRIPE_BUSINESS_PRICE_ID,
         features: [
             'Unlimited transactions',

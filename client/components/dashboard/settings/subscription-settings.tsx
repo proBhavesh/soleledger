@@ -47,7 +47,7 @@ const planFeatures = {
   },
   professional: {
     name: "Professional",
-    price: 19,
+    price: 39,
     features: [
       "Up to 1,000 transactions per month",
       "Up to 5 bank accounts",
@@ -61,7 +61,7 @@ const planFeatures = {
   },
   business: {
     name: "Business",
-    price: 49,
+    price: 59,
     features: [
       "Unlimited transactions",
       "Unlimited bank accounts",

@@ -33,6 +33,33 @@ export async function startTrialAction(planType: PlanType): Promise<Subscription
   const userId = session.user.id;
 
   try {
+    // First, verify the user exists in the database with retry logic
+    let userExists = false;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (!userExists && retryCount < maxRetries) {
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { id: true },
+      });
+      
+      if (user) {
+        userExists = true;
+      } else {
+        retryCount++;
+        if (retryCount < maxRetries) {
+          // Wait with exponential backoff: 100ms, 200ms, 400ms
+          await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, retryCount - 1)));
+        }
+      }
+    }
+    
+    if (!userExists) {
+      console.error(`User ${userId} not found after ${maxRetries} retries`);
+      return { success: false, error: SUBSCRIPTION_ERROR_MESSAGES.userNotReady };
+    }
+
     // Check if user already has a subscription
     const existingSubscription = await db.subscription.findFirst({
       where: { userId },

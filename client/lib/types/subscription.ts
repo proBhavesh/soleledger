@@ -36,7 +36,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     id: "professional",
     name: "Professional",
-    price: 19,
+    price: 39,
     currency: "CAD",
     interval: "month",
     features: [
@@ -59,7 +59,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     id: "business",
     name: "Business",
-    price: 49,
+    price: 59,
     currency: "CAD",
     interval: "month",
     features: [
