@@ -111,6 +111,8 @@ export default function RegisterPage() {
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     try {
+      // Store the selected role in a cookie before OAuth redirect
+      document.cookie = `pending-role=${watchRole}; path=/; max-age=600`; // 10 minute expiry
       await signIn("google", { callbackUrl: "/pricing" });
     } catch (error) {
       toast.error("Failed to sign in with Google");

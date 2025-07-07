@@ -115,33 +115,55 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (!existingUser) {
+            // Get the pending role from cookies (set during registration)
+            const { cookies } = await import("next/headers");
+            const cookieStore = await cookies();
+            const pendingRoleCookie = cookieStore.get("pending-role");
+            const role = pendingRoleCookie?.value === "ACCOUNTANT" ? "ACCOUNTANT" : "BUSINESS_OWNER";
+            
+            // Clear the pending role cookie
+            if (pendingRoleCookie) {
+              cookieStore.delete("pending-role");
+            }
+            
             // Create new user with Google OAuth
             const newUser = await db.user.create({
               data: {
                 email: user.email!,
                 name: user.name || "",
                 image: user.image,
-                role: "BUSINESS_OWNER", // Default role for Google sign-ups
+                role: role,
                 emailVerified: new Date(), // Google emails are pre-verified
               },
             });
 
-            // Create business profile for new Google users
-            await db.businessProfile.create({
-              data: {
-                userId: newUser.id,
-                businessName: `${user.name}'s Business`,
-              },
-            });
+            // Only create business-related records if the role is BUSINESS_OWNER
+            if (role === "BUSINESS_OWNER") {
+              // Create business profile for business owners
+              await db.businessProfile.create({
+                data: {
+                  userId: newUser.id,
+                  businessName: `${user.name}'s Business`,
+                },
+              });
 
-            // Create a default business
-            await db.business.create({
-              data: {
-                name: `${user.name}'s Business`,
-                ownerId: newUser.id,
-                industry: "Other",
-              },
-            });
+              // Create a default business
+              await db.business.create({
+                data: {
+                  name: `${user.name}'s Business`,
+                  ownerId: newUser.id,
+                  industry: "Other",
+                },
+              });
+            } else if (role === "ACCOUNTANT") {
+              // Create accountant profile
+              await db.accountantProfile.create({
+                data: {
+                  userId: newUser.id,
+                  firmName: `${user.name}'s Accounting Firm`,
+                },
+              });
+            }
           }
 
           return true;
