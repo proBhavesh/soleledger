@@ -111,9 +111,12 @@ pnpm dlx shadcn@latest add [component-name]
 - **Status tracking**: UNMATCHED → MATCHED/MANUALLY_MATCHED
 
 ### Subscription Model
-- Trial → Basic ($19) → Professional ($49) → Enterprise (custom)
+- Free Plan (Forever free with limits)
+- Professional ($39 CAD/month) - For growing businesses
+- Business ($59 CAD/month) - For established businesses
 - Stripe webhooks handle status updates
 - Features gated by subscription level
+- Usage limits enforced (transactions, bank accounts, document uploads)
 
 ## Environment Variables Required
 
@@ -132,6 +135,10 @@ AUTH_GOOGLE_SECRET=
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 STRIPE_PUBLISHABLE_KEY=
+STRIPE_PROFESSIONAL_PRICE_ID=    # Price ID for $39 CAD plan
+STRIPE_BUSINESS_PRICE_ID=        # Price ID for $59 CAD plan
+NEXT_PUBLIC_STRIPE_PROFESSIONAL_PRICE_ID=  # Client-accessible price ID
+NEXT_PUBLIC_STRIPE_BUSINESS_PRICE_ID=      # Client-accessible price ID
 PLAID_CLIENT_ID=
 PLAID_SECRET=
 PLAID_ENV=               # sandbox/development/production

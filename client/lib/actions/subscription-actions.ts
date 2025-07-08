@@ -242,8 +242,8 @@ const upgradeSubscriptionSchema = z.object({
 
 const planPricing = {
   free: { price: 0, name: "Free" },
-  professional: { price: 19, name: "Professional" },
-  business: { price: 49, name: "Business" },
+  professional: { price: 39, name: "Professional" },
+  business: { price: 59, name: "Business" },
 };
 
 /**
