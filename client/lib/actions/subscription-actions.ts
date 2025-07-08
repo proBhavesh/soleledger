@@ -71,27 +71,35 @@ export async function startTrialAction(planType: PlanType): Promise<Subscription
 
     const plan = PLANS[planType];
 
-    // Create subscription record in database
-    await db.subscription.create({
-      data: {
-        userId,
-        status: "ACTIVE",
-        plan: planType,
-        planName: plan.name,
-        priceId: plan.priceId,
-        amount: plan.price || 0,
-        interval: "month",
-        currency: "CAD",
-      },
-    });
+    // For FREE plan, create subscription directly
+    if (planType === "FREE") {
+      await db.subscription.create({
+        data: {
+          userId,
+          status: "ACTIVE",
+          plan: planType,
+          planName: plan.name,
+          priceId: null,
+          amount: 0,
+          interval: "month",
+          currency: "CAD",
+        },
+      });
 
-    return {
-      success: true,
-      message: planType === "FREE" 
-        ? "Welcome! Your free account is now active."
-        : `Your ${plan.name} subscription has been activated!`,
-      redirect: `/dashboard?subscription=${planType.toLowerCase()}`,
-    };
+      return {
+        success: true,
+        message: "Welcome! Your free account is now active.",
+        redirect: `/dashboard?subscription=free`,
+      };
+    } else {
+      // For paid plans, redirect to checkout
+      // This should not be called directly - the frontend should call createCheckoutSessionAction
+      return {
+        success: false,
+        error: "Please use the checkout process for paid plans",
+        redirect: undefined,
+      };
+    }
   } catch (error) {
     console.error("Error starting subscription:", error);
     return { success: false, error: SUBSCRIPTION_ERROR_MESSAGES.stripeError };

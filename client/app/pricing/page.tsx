@@ -41,32 +41,31 @@ export default function PricingPage() {
     setIsLoading({ ...isLoading, [planType]: true });
 
     try {
-      // Start a trial
-      const result = await startTrialAction(planType);
+      if (planType === "FREE") {
+        // For free plan, create subscription directly
+        const result = await startTrialAction(planType);
 
-      if (result.error) {
-        toast.error(result.error);
-
-        // If user already has subscription, try to start checkout
-        if (result.error === "User already has a subscription") {
-          const checkoutResult = await createCheckoutSessionAction(planType);
-
-          if (checkoutResult.error) {
-            toast.error(checkoutResult.error);
-          } else if (checkoutResult.checkoutUrl) {
-            // Redirect to checkout
-            window.location.href = checkoutResult.checkoutUrl;
+        if (result.error) {
+          toast.error(result.error);
+        } else if (result.success) {
+          toast.success(result.message);
+          if (result.redirect) {
+            router.push(result.redirect);
+          } else {
+            router.push("/dashboard");
           }
         }
-      } else if (result.success) {
-        toast.success(result.message);
+      } else {
+        // For paid plans, go to Stripe checkout
+        const checkoutResult = await createCheckoutSessionAction(planType);
 
-        // Check if there's a redirect URL in the response
-        if (result.redirect) {
-          router.push(result.redirect);
+        if (checkoutResult.error) {
+          toast.error(checkoutResult.error);
+        } else if (checkoutResult.checkoutUrl) {
+          // Redirect to Stripe checkout
+          window.location.href = checkoutResult.checkoutUrl;
         } else {
-          // Default redirect to dashboard
-          router.push("/dashboard");
+          toast.error("Unable to create checkout session. Please try again.");
         }
       }
     } catch (error) {
