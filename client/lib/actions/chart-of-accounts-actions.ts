@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { ChartAccount, DefaultChartAccount } from "@/lib/types";
+import { getCurrentBusinessId } from "./business-context-actions";
 
 // Standard Chart of Accounts template for Canadian businesses
 const DEFAULT_CHART_OF_ACCOUNTS: DefaultChartAccount[] = [
@@ -540,13 +541,12 @@ export async function getChartOfAccounts(businessId?: string) {
     // Get user's business if not provided
     let targetBusinessId = businessId;
     if (!targetBusinessId) {
-      const business = await db.business.findFirst({
-        where: { ownerId: session.user.id },
-      });
-      if (!business) {
+      // Use getCurrentBusinessId helper which handles multi-client system
+      const currentBusinessId = await getCurrentBusinessId();
+      if (!currentBusinessId) {
         return { success: false, error: "No business found" };
       }
-      targetBusinessId = business.id;
+      targetBusinessId = currentBusinessId;
     }
 
     // Get all accounts for the business
@@ -625,19 +625,16 @@ export async function createAccount(data: z.infer<typeof createAccountSchema>) {
 
     const validatedData = createAccountSchema.parse(data);
 
-    // Get user's business
-    const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
-    });
-
-    if (!business) {
+    // Get user's current business using multi-client aware helper
+    const businessId = await getCurrentBusinessId();
+    if (!businessId) {
       return { success: false, error: "No business found" };
     }
 
     // Check if account code already exists
     const existingAccount = await db.category.findFirst({
       where: {
-        businessId: business.id,
+        businessId,
         accountCode: validatedData.accountCode,
       },
     });
@@ -668,7 +665,7 @@ export async function createAccount(data: z.infer<typeof createAccountSchema>) {
     // Create the account
     const account = await db.category.create({
       data: {
-        businessId: business.id,
+        businessId,
         accountCode: validatedData.accountCode,
         name: validatedData.name,
         accountType: validatedData.accountType,
@@ -702,12 +699,9 @@ export async function updateAccount(
       return { success: false, error: "Unauthorized" };
     }
 
-    // Get user's business
-    const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
-    });
-
-    if (!business) {
+    // Get user's current business using multi-client aware helper
+    const businessId = await getCurrentBusinessId();
+    if (!businessId) {
       return { success: false, error: "No business found" };
     }
 
@@ -715,7 +709,7 @@ export async function updateAccount(
     const existingAccount = await db.category.findFirst({
       where: {
         id: accountId,
-        businessId: business.id,
+        businessId,
       },
     });
 
@@ -727,7 +721,7 @@ export async function updateAccount(
     if (data.accountCode && data.accountCode !== existingAccount.accountCode) {
       const conflictingAccount = await db.category.findFirst({
         where: {
-          businessId: business.id,
+          businessId,
           accountCode: data.accountCode,
           id: { not: accountId },
         },
@@ -766,13 +760,22 @@ export async function deactivateAccount(accountId: string) {
       return { success: false, error: "Unauthorized" };
     }
 
-    // Get user's business
-    const business = await db.business.findFirst({
-      where: { ownerId: session.user.id },
+    // Get user's current business using multi-client aware helper
+    const businessId = await getCurrentBusinessId();
+    if (!businessId) {
+      return { success: false, error: "No business found" };
+    }
+
+    // Verify account belongs to user's business
+    const account = await db.category.findFirst({
+      where: {
+        id: accountId,
+        businessId,
+      },
     });
 
-    if (!business) {
-      return { success: false, error: "No business found" };
+    if (!account) {
+      return { success: false, error: "Account not found" };
     }
 
     // Check if account has transactions

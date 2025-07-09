@@ -75,8 +75,14 @@ export function PlaidLinkButton({
     setShouldOpenLink(true);
     try {
       const response = await createLinkToken(selectedBusinessId || undefined);
-      setToken(response.linkToken);
-      setBusinessId(response.businessId);
+      if (response.success && response.data) {
+        setToken(response.data.linkToken);
+        setBusinessId(response.data.businessId);
+      } else {
+        console.error("Error getting link token:", response.error);
+        toast.error(response.error || "Failed to start bank connection process");
+        setShouldOpenLink(false);
+      }
     } catch (error) {
       console.error("Error getting link token:", error);
       toast.error("Failed to start bank connection process");
@@ -113,7 +119,11 @@ export function PlaidLinkButton({
         };
 
         // First, exchange the public token
-        await exchangePublicToken(publicToken, businessId, transformedMetadata);
+        const exchangeResult = await exchangePublicToken(publicToken, businessId, transformedMetadata);
+        
+        if (!exchangeResult.success) {
+          throw new Error(exchangeResult.error || "Failed to exchange token");
+        }
 
         // Now show the syncing dialog after the Plaid modal is closed and token is exchanged
         setIsSyncing(true);

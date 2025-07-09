@@ -10,6 +10,7 @@ import { AccountBalanceChart } from "@/components/dashboard/charts/account-balan
 import { TransactionCategoryDialog } from "@/components/dashboard/transactions/transaction-category-dialog";
 import { TransactionFilters } from "@/components/dashboard/transactions/transaction-filters";
 import { PlaidLinkButton } from "@/components/dashboard/plaid/plaid-link-button";
+import { CreateManualAccountDialog } from "@/components/dashboard/banking/create-manual-account-dialog";
 import { getBankAccounts, getEnrichedTransactions } from "@/lib/actions/plaid";
 import { toast } from "sonner";
 import {
@@ -18,6 +19,7 @@ import {
   ChevronLeft,
   RefreshCw,
   Tag,
+  Plus,
 } from "lucide-react";
 import {
   Table,
@@ -51,6 +53,7 @@ export function BankAccountsPage({
   );
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
+  const [showManualAccountDialog, setShowManualAccountDialog] = useState(false);
 
   // Get selected account
   const selectedAccount = accounts.find(
@@ -226,6 +229,13 @@ export function BankAccountsPage({
                     Refresh All
                   </>
                 )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowManualAccountDialog(true)}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Manual Account
               </Button>
               <PlaidLinkButton onSuccess={handleAccountConnected} />
             </>
@@ -412,6 +422,13 @@ export function BankAccountsPage({
           </TabsContent>
         </Tabs>
       )}
+
+      {/* Manual Account Creation Dialog */}
+      <CreateManualAccountDialog
+        open={showManualAccountDialog}
+        onOpenChange={setShowManualAccountDialog}
+        onSuccess={refreshAllAccounts}
+      />
     </div>
   );
 }

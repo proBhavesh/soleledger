@@ -70,6 +70,12 @@ export interface BankAccount {
   plaidAccessToken?: string | null;
   accountType?: string | null;
   availableBalance?: number | null;
+  isManual?: boolean;
+  lastManualUpdate?: Date | null;
+  userId?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+  previousBalance?: number;
 }
 
 // Recurring expense type for dashboard

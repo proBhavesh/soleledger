@@ -28,15 +28,11 @@ import {
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { BankAccount as BaseBankAccount } from "@/lib/types/dashboard";
-
-// Extend the BankAccount type to include the previousBalance property used in this component
-interface BankAccountWithPrevious extends BaseBankAccount {
-  previousBalance?: number | null;
-}
+import { BankAccount } from "@/lib/types/dashboard";
+import { BANK_ACCOUNT_TYPE_LABELS } from "@/lib/types/bank-accounts";
 
 interface BankAccountsSummaryProps {
-  accounts?: BankAccountWithPrevious[];
+  accounts?: BankAccount[];
   onAccountSelect?: (accountId: string) => void;
   onRefresh?: () => void;
 }
@@ -46,7 +42,7 @@ export function BankAccountsSummary({
   onAccountSelect,
   onRefresh: externalRefresh,
 }: BankAccountsSummaryProps) {
-  const [accounts, setAccounts] = useState<BankAccountWithPrevious[]>([]);
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshingAccountId, setRefreshingAccountId] = useState<string | null>(
@@ -124,7 +120,7 @@ export function BankAccountsSummary({
                     typeof result.balance === "number"
                       ? result.balance
                       : account.balance,
-                  previousBalance: account.balance, // Store previous balance for comparison
+                  previousBalance: typeof account.balance === "number" ? account.balance : undefined, // Store previous balance for comparison
                   lastSync: new Date(),
                 }
               : account
@@ -167,11 +163,17 @@ export function BankAccountsSummary({
       return <Building className="h-5 w-5 text-muted-foreground" />;
 
     switch (accountType.toLowerCase()) {
-      case "credit":
+      case "credit_card":
       case "credit card":
+      case "credit":
         return <CreditCard className="h-5 w-5 text-sky-500" />;
       case "savings":
         return <PiggyBank className="h-5 w-5 text-emerald-500" />;
+      case "line_of_credit":
+      case "line of credit":
+        return <CreditCard className="h-5 w-5 text-orange-500" />;
+      case "loan":
+        return <Building className="h-5 w-5 text-red-500" />;
       case "checking":
       default:
         return <Building className="h-5 w-5 text-blue-500" />;
@@ -286,9 +288,14 @@ export function BankAccountsSummary({
                   </div>
 
                   <div className="flex items-center gap-2">
+                    {account.isManual && (
+                      <Badge variant="secondary" className="text-xs">
+                        Manual
+                      </Badge>
+                    )}
                     {account.accountType && (
-                      <Badge variant="outline" className="capitalize">
-                        {account.accountType}
+                      <Badge variant="outline">
+                        {BANK_ACCOUNT_TYPE_LABELS[account.accountType as keyof typeof BANK_ACCOUNT_TYPE_LABELS] || account.accountType}
                       </Badge>
                     )}
                     <Button
@@ -329,9 +336,11 @@ export function BankAccountsSummary({
                         <span>Balance decreased</span>
                       </div>
                     )}
-                    {account.lastSync && (
+                    {(account.isManual ? account.lastManualUpdate : account.lastSync) && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        Last updated: {formatDate(account.lastSync)}
+                        Last updated: {formatDate(
+                          account.isManual ? account.lastManualUpdate! : account.lastSync!
+                        )}
                       </p>
                     )}
                   </div>

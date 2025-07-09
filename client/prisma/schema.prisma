@@ -231,26 +231,30 @@ model Usage {
 }
 
 model BankAccount {
-  id               String        @id @default(cuid())
+  id               String           @id @default(cuid())
   businessId       String
   userId           String
   name             String
   accountNumber    String?
   routingNumber    String?
   institution      String?
-  balance          Float?
-  currency         String        @default("CAD")
+  accountType      BankAccountType  @default(CHECKING)
+  balance          Float            @default(0)
+  currency         String           @default("CAD")
+  isManual         Boolean          @default(false)
+  lastManualUpdate DateTime?
   plaidItemId      String?
   plaidAccessToken String?
   lastSync         DateTime?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  business         Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  business         Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions     Transaction[]
   
   @@index([plaidAccessToken])
   @@index([businessId, userId])
+  @@index([isManual])
 }
 
 model Category {
@@ -567,6 +571,14 @@ enum ReportType {
   RECONCILIATION_SUMMARY
   TAX_SUMMARY
   MONTHLY_SUMMARY
+}
+
+enum BankAccountType {
+  CHECKING
+  SAVINGS
+  CREDIT_CARD
+  LINE_OF_CREDIT
+  LOAN
 }
 
 model PasswordResetToken {

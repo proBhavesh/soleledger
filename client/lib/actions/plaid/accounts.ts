@@ -7,6 +7,7 @@ import { Transaction, BalanceHistoryPoint } from "@/lib/types/dashboard";
 import { PlaidErrorResponse } from "@/lib/types/plaid";
 import { revalidatePath } from "next/cache";
 import { AxiosError } from "axios";
+import { PLAID_ERROR_MESSAGES } from "@/lib/types/plaid-actions";
 
 // Define a simple transaction type for calculate balance history
 interface PlaidTransactionSummary {
@@ -21,7 +22,10 @@ interface PlaidTransactionSummary {
 export async function getBankAccounts(businessId?: string) {
   const session = await auth();
   if (!session?.user?.id) {
-    throw new Error("Unauthorized");
+    return { 
+      success: false, 
+      error: PLAID_ERROR_MESSAGES.unauthorized 
+    };
   }
 
   const userId = session.user.id;
@@ -50,7 +54,10 @@ export async function getBankAccounts(businessId?: string) {
     }
 
     if (!business) {
-      throw new Error("No business found or access denied");
+      return { 
+        success: false, 
+        error: PLAID_ERROR_MESSAGES.noBusinessFound 
+      };
     }
 
     // Get bank accounts for the business
@@ -69,7 +76,10 @@ export async function getBankAccounts(businessId?: string) {
     };
   } catch (error) {
     console.error("Error getting bank accounts:", error);
-    throw new Error("Failed to get bank accounts");
+    return { 
+      success: false, 
+      error: PLAID_ERROR_MESSAGES.fetchAccountsFailed 
+    };
   }
 }
 

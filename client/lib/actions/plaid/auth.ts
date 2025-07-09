@@ -12,14 +12,25 @@ import { Products, CountryCode, LinkTokenCreateRequest } from "plaid";
 import { checkBankAccountLimit } from "@/lib/services/usage-tracking";
 import { revalidatePath } from "next/cache";
 import { PlaidErrorDetails, PlaidErrorObject } from "@/lib/types";
+import { mapPlaidAccountType } from "@/lib/plaid/account-type-mapper";
+import { 
+  PlaidActionResponse, 
+  CreateLinkTokenData, 
+  PLAID_ERROR_MESSAGES 
+} from "@/lib/types/plaid-actions";
 
 /**
  * Creates a Plaid Link token for a user to connect their bank account
+ * 
+ * @param businessId - Optional business ID to connect accounts to
+ * @returns Promise resolving to success/error status and link token data
  */
-export async function createLinkToken(businessId?: string) {
+export async function createLinkToken(
+  businessId?: string
+): Promise<PlaidActionResponse<CreateLinkTokenData>> {
   const session = await auth();
   if (!session?.user?.id) {
-    throw new Error("Unauthorized");
+    return { success: false, error: PLAID_ERROR_MESSAGES.unauthorized };
   }
 
   const userId = session.user.id;
@@ -57,7 +68,7 @@ export async function createLinkToken(businessId?: string) {
   }
 
   if (!business) {
-    throw new Error("No business found or access denied");
+    return { success: false, error: PLAID_ERROR_MESSAGES.noBusinessFound };
   }
 
   const request: LinkTokenCreateRequest = {
@@ -76,9 +87,12 @@ export async function createLinkToken(businessId?: string) {
     const response = await plaidClient.linkTokenCreate(request);
 
     return {
-      linkToken: response.data.link_token,
-      expiration: response.data.expiration,
-      businessId: business.id,
+      success: true,
+      data: {
+        linkToken: response.data.link_token,
+        expiration: response.data.expiration,
+        businessId: business.id,
+      },
     };
   } catch (error: unknown) {
     // Extract and log detailed error information
@@ -115,14 +129,20 @@ export async function createLinkToken(businessId?: string) {
       );
     }
 
-    throw new Error(
-      `Failed to create Plaid link token: ${errorDetails.message}`
-    );
+    return { 
+      success: false, 
+      error: PLAID_ERROR_MESSAGES.linkTokenFailed 
+    };
   }
 }
 
 /**
  * Exchanges a public token for an access token and stores it in the database
+ * 
+ * @param publicToken - The public token from Plaid Link
+ * @param businessId - The business ID to associate accounts with
+ * @param metadata - Account metadata from Plaid Link
+ * @returns Promise resolving to success/error status
  */
 export async function exchangePublicToken(
   publicToken: string,
@@ -140,10 +160,10 @@ export async function exchangePublicToken(
       subtype: string;
     }>;
   }
-) {
+): Promise<PlaidActionResponse<void>> {
   const session = await auth();
   if (!session?.user?.id) {
-    throw new Error("Unauthorized");
+    return { success: false, error: PLAID_ERROR_MESSAGES.unauthorized };
   }
 
   const userId = session.user.id;
@@ -151,7 +171,10 @@ export async function exchangePublicToken(
   // Check bank account limit before proceeding
   const usageCheck = await checkBankAccountLimit(userId, businessId);
   if (!usageCheck.allowed) {
-    throw new Error(usageCheck.message || "Bank account limit exceeded");
+    return { 
+      success: false, 
+      error: usageCheck.message || PLAID_ERROR_MESSAGES.accountLimitExceeded 
+    };
   }
 
   try {
@@ -179,12 +202,14 @@ export async function exchangePublicToken(
         await db.bankAccount.create({
           data: {
             name: account.name,
+            accountType: mapPlaidAccountType(account.type, account.subtype),
             balance: account.balances.current ?? 0,
             currency: account.balances.iso_currency_code ?? "CAD",
             accountNumber: account.mask ? `****${account.mask}` : undefined,
             institution: metadata.institution?.name ?? "Unknown Bank",
             plaidItemId: itemId,
             plaidAccessToken: accessToken,
+            isManual: false,
             lastSync: new Date(),
             businessId,
             userId,
@@ -210,6 +235,6 @@ export async function exchangePublicToken(
     return { success: true };
   } catch (error: unknown) {
     console.error("Error exchanging public token:", error);
-    throw new Error("Failed to connect bank account");
+    return { success: false, error: PLAID_ERROR_MESSAGES.exchangeTokenFailed };
   }
 }
