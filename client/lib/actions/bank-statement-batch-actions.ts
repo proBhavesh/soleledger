@@ -2,14 +2,14 @@
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { Prisma } from "@/generated/prisma";
 import { JournalEntryFactory } from "@/lib/accounting/journal-entry-factory";
-import { checkTransactionLimit, incrementTransactionCount } from "@/lib/services/usage-tracking";
+import { checkTransactionLimit } from "@/lib/services/usage-tracking";
+import { TransactionProcessor } from "@/lib/services/transaction-processor";
 import type { 
   BatchImportTransaction, 
   ChartOfAccountsMap,
   ImportBankStatementResponse,
-  JournalEntryInput
+  ProcessingProgress
 } from "@/lib/types/bank-imports";
 
 /**
@@ -71,6 +71,21 @@ async function getChartOfAccountsMap(businessId: string): Promise<ChartOfAccount
       case "5220": accountMap.creditCardFees = account.id; break;
       case "5250": accountMap.depreciation = account.id; break;
       case "5999": accountMap.miscellaneous = account.id; break;
+      case "5900": accountMap.otherExpense = account.id; break;
+    }
+  }
+  
+  // Ensure we have a fallback miscellaneous expense account
+  if (!accountMap.miscellaneous && !accountMap.otherExpense) {
+    // Find any expense account as fallback
+    const fallbackExpense = accounts.find(a => 
+      parseInt(a.accountCode) >= 5000 && parseInt(a.accountCode) < 8000
+    );
+    if (fallbackExpense) {
+      accountMap.miscellaneous = fallbackExpense.id;
+      console.warn(`Using ${fallbackExpense.name} (${fallbackExpense.accountCode}) as fallback expense account`);
+    } else {
+      console.warn("No miscellaneous expense account found - some expense entries may fail");
     }
   }
   
@@ -78,7 +93,18 @@ async function getChartOfAccountsMap(businessId: string): Promise<ChartOfAccount
 }
 
 /**
- * Map suggested category name to chart of accounts
+ * Map suggested category name to Chart of Accounts category.
+ * 
+ * This function maps AI-suggested categories or imported transaction categories
+ * to the business's Chart of Accounts. It uses a multi-step matching approach:
+ * 1. Exact name match (case-insensitive)
+ * 2. Account code match (if suggested category contains a code like "5030")
+ * 3. Keyword-based fuzzy matching
+ * 
+ * @param businessId - The business ID to search categories for
+ * @param suggestedCategory - The category name suggested by AI or from import
+ * @param transactionType - Whether this is an income or expense transaction
+ * @returns The category ID if found, undefined otherwise
  */
 async function getCategoryId(
   businessId: string, 
@@ -102,6 +128,21 @@ async function getCategoryId(
   
   if (exactMatch) return exactMatch.id;
   
+  // Check if the suggested category contains an account code (e.g., "5030 - Rent")
+  const accountCodeMatch = suggestedCategory.match(/^\d{4}/);
+  if (accountCodeMatch) {
+    const codeMatch = await db.category.findFirst({
+      where: {
+        businessId,
+        accountCode: accountCodeMatch[0],
+        isActive: true
+      },
+      select: { id: true }
+    });
+    
+    if (codeMatch) return codeMatch.id;
+  }
+  
   // Try to match by keywords
   const keywords = suggestedCategory.toLowerCase().split(/\s+/);
   const categories = await db.category.findMany({
@@ -110,7 +151,7 @@ async function getCategoryId(
       isActive: true,
       accountType: transactionType === "income" ? "INCOME" : "EXPENSE"
     },
-    select: { id: true, name: true, description: true }
+    select: { id: true, name: true, description: true, accountCode: true }
   });
   
   // Score each category based on keyword matches
@@ -133,17 +174,23 @@ async function getCategoryId(
     }
   }
   
+  // Log for debugging category matching issues
+  if (!bestMatch && suggestedCategory) {
+    console.log(`No category match found for "${suggestedCategory}" (${transactionType})`);
+  }
+  
   return bestMatch?.id;
 }
 
 /**
- * Batch import bank statement transactions with optimized performance
+ * Batch import bank statement transactions with robust processing
  */
 export async function batchImportBankStatementTransactions(request: {
   documentId: string;
   bankAccountId: string;
   businessId: string;
   transactions: BatchImportTransaction[];
+  progressCallback?: (progress: ProcessingProgress) => void;
 }): Promise<ImportBankStatementResponse> {
   const session = await auth();
   if (!session?.user?.id) {
@@ -153,7 +200,7 @@ export async function batchImportBankStatementTransactions(request: {
     };
   }
 
-  const { documentId, bankAccountId, businessId, transactions } = request;
+  const { documentId, bankAccountId, businessId, transactions, progressCallback } = request;
 
   // Filter selected transactions
   const selectedTransactions = transactions.filter(tx => tx.selected !== false);
@@ -184,11 +231,14 @@ export async function batchImportBankStatementTransactions(request: {
     });
 
     if (!businessMember) {
+      console.error(`User ${session.user.id} does not have access to business ${businessId}`);
       return {
         success: false,
         error: "You don't have access to this business",
       };
     }
+
+    console.log(`Processing ${selectedTransactions.length} transactions for business ${businessId} by user ${session.user.id}`);
 
     // Get chart of accounts mapping
     const accountMap = await getChartOfAccountsMap(businessId);
@@ -221,122 +271,56 @@ export async function batchImportBankStatementTransactions(request: {
       rentExpenseId: accountMap.rent,
       utilitiesExpenseId: accountMap.utilities,
       interestExpenseId: accountMap.interestExpense,
-      miscExpenseId: accountMap.miscellaneous,
+      miscExpenseId: accountMap.miscellaneous || accountMap.otherExpense,
     });
 
-    // Process transactions and create journal entries
-    const transactionData: Prisma.TransactionCreateManyInput[] = [];
-    const journalEntryBatches: Array<{
-      transactionIndex: number;
-      entries: JournalEntryInput[];
-    }> = [];
+    // Transform transactions to match processor format
+    const processableTransactions: BatchImportTransaction[] = [];
     
-    let skippedTransfers = 0;
-
-    for (const [index, tx] of selectedTransactions.entries()) {
+    for (const tx of selectedTransactions) {
       // Map suggested category to actual category ID
       const categoryId = await getCategoryId(
         businessId, 
         tx.suggestedCategory,
-        tx.type === "credit" ? "income" : "expense"
+        tx.type === "INCOME" ? "income" : "expense"
       );
       
-      // Determine transaction type for database
-      const transactionType = tx.type === "credit" ? "INCOME" : "EXPENSE";
-      
-      // Create journal entries using factory
-      const journalEntrySet = journalFactory.createJournalEntries({
+      processableTransactions.push({
         ...tx,
-        businessId,
-        bankAccountId,
-        categoryId,
-      });
-      
-      // Skip if no journal entries (e.g., transfers)
-      if (journalEntrySet.entries.length === 0) {
-        skippedTransfers++;
-        continue;
-      }
-      
-      // Add transaction data
-      transactionData.push({
-        businessId,
-        bankAccountId,
-        description: tx.description,
-        amount: tx.amount,
         date: new Date(tx.date),
-        type: transactionType,
-        categoryId: categoryId || accountMap.miscellaneous,
-        reference: tx.reference,
-        createdById: session.user.id,
-        // Store extra data in notes for now since metadata field doesn't exist
-        notes: `Source: Bank Statement Import${tx.balance ? ` | Balance: ${tx.balance}` : ''}`,
-      });
-      
-      // Store journal entries for later
-      journalEntryBatches.push({
-        transactionIndex: index,
-        entries: journalEntrySet.entries,
+        type: tx.type,
+        amount: Math.abs(tx.amount),
+        bankAccountId,
+        categoryId: categoryId || accountMap.miscellaneous || accountMap.otherExpense,
+        vendor: tx.description,
+        externalId: tx.reference,
+        pending: false,
       });
     }
 
-    // Perform batch operations in a transaction
-    const result = await db.$transaction(async (prisma) => {
-      // Create all transactions
-      const createdTransactions = await prisma.transaction.createManyAndReturn({
-        data: transactionData,
-        select: { id: true },
-      });
-      
-      // Create map of transaction indices to IDs
-      const transactionIdMap = new Map<number, string>();
-      createdTransactions.forEach((tx, idx) => {
-        transactionIdMap.set(idx, tx.id);
-      });
-      
-      // Prepare all journal entries with transaction IDs
-      const allJournalEntries: Prisma.JournalEntryCreateManyInput[] = [];
-      
-      journalEntryBatches.forEach(({ transactionIndex, entries }) => {
-        const transactionId = transactionIdMap.get(transactionIndex);
-        if (transactionId) {
-          entries.forEach(entry => {
-            allJournalEntries.push({
-              ...entry,
-              transactionId,
-            });
-          });
-        }
-      });
+    // Create transaction processor with optimized configuration
+    const processor = new TransactionProcessor({
+      batchSize: 10, // Process 10 transactions at a time
+      transactionTimeout: 30000, // 30 seconds per batch
+      maxRetries: 3,
+      progressCallback,
+    });
 
-      await prisma.journalEntry.createMany({
-        data: allJournalEntries,
-      });
-      
-      // Update document status
-      await prisma.document.update({
-        where: { id: documentId },
-        data: { 
-          processingStatus: "COMPLETED",
-          extractedData: {
-            importedAt: new Date().toISOString(),
-            importedTransactions: createdTransactions.length,
-          },
-        },
-      });
-      
-      // Increment usage count
-      await incrementTransactionCount(businessId, createdTransactions.length);
-      
-      return createdTransactions.length;
+    // Process transactions using the robust processor
+    const result = await processor.processTransactions(processableTransactions, {
+      businessId,
+      userId: session.user.id,
+      documentId,
+      accountMap,
+      journalFactory,
     });
 
     return {
       success: true,
       data: {
-        imported: result,
-        failed: 0,
-        skipped: skippedTransfers,
+        imported: result.imported,
+        failed: result.failed,
+        skipped: result.skipped,
         total: selectedTransactions.length,
       },
     };
@@ -344,7 +328,7 @@ export async function batchImportBankStatementTransactions(request: {
     console.error("Error in batch import:", error);
     return {
       success: false,
-      error: "Failed to import transactions. Please try again.",
+      error: error instanceof Error ? error.message : "Failed to import transactions. Please try again.",
     };
   }
 }

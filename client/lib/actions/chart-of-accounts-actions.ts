@@ -3,527 +3,43 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
-import { ChartAccount, DefaultChartAccount } from "@/lib/types";
+import { ChartAccount } from "@/lib/types";
 import { getCurrentBusinessId } from "./business-context-actions";
-
-// Standard Chart of Accounts template for Canadian businesses
-const DEFAULT_CHART_OF_ACCOUNTS: DefaultChartAccount[] = [
-  // ASSETS (1000-1999)
-  {
-    code: "1000",
-    name: "Cash and Cash Equivalents",
-    type: "ASSET",
-    sort: 1000,
-  },
-  {
-    code: "1010",
-    name: "Checking Account",
-    type: "ASSET",
-    sort: 1010,
-    parent: "1000",
-  },
-  {
-    code: "1020",
-    name: "Savings Account",
-    type: "ASSET",
-    sort: 1020,
-    parent: "1000",
-  },
-  {
-    code: "1030",
-    name: "Petty Cash",
-    type: "ASSET",
-    sort: 1030,
-    parent: "1000",
-  },
-
-  { code: "1100", name: "Accounts Receivable", type: "ASSET", sort: 1100 },
-  {
-    code: "1110",
-    name: "Trade Receivables",
-    type: "ASSET",
-    sort: 1110,
-    parent: "1100",
-  },
-  {
-    code: "1120",
-    name: "Other Receivables",
-    type: "ASSET",
-    sort: 1120,
-    parent: "1100",
-  },
-
-  { code: "1200", name: "Inventory", type: "ASSET", sort: 1200 },
-  {
-    code: "1210",
-    name: "Raw Materials",
-    type: "ASSET",
-    sort: 1210,
-    parent: "1200",
-  },
-  {
-    code: "1220",
-    name: "Finished Goods",
-    type: "ASSET",
-    sort: 1220,
-    parent: "1200",
-  },
-
-  { code: "1300", name: "Prepaid Expenses", type: "ASSET", sort: 1300 },
-  {
-    code: "1310",
-    name: "Prepaid Insurance",
-    type: "ASSET",
-    sort: 1310,
-    parent: "1300",
-  },
-  {
-    code: "1320",
-    name: "Prepaid Rent",
-    type: "ASSET",
-    sort: 1320,
-    parent: "1300",
-  },
-
-  {
-    code: "1500",
-    name: "Property, Plant & Equipment",
-    type: "ASSET",
-    sort: 1500,
-  },
-  {
-    code: "1510",
-    name: "Office Equipment",
-    type: "ASSET",
-    sort: 1510,
-    parent: "1500",
-  },
-  {
-    code: "1520",
-    name: "Computer Equipment",
-    type: "ASSET",
-    sort: 1520,
-    parent: "1500",
-  },
-  {
-    code: "1530",
-    name: "Furniture & Fixtures",
-    type: "ASSET",
-    sort: 1530,
-    parent: "1500",
-  },
-  { code: "1540", name: "Vehicles", type: "ASSET", sort: 1540, parent: "1500" },
-
-  // LIABILITIES (2000-2999)
-  { code: "2000", name: "Accounts Payable", type: "LIABILITY", sort: 2000 },
-  {
-    code: "2010",
-    name: "Trade Payables",
-    type: "LIABILITY",
-    sort: 2010,
-    parent: "2000",
-  },
-  {
-    code: "2020",
-    name: "Accrued Expenses",
-    type: "LIABILITY",
-    sort: 2020,
-    parent: "2000",
-  },
-
-  { code: "2100", name: "Short-term Debt", type: "LIABILITY", sort: 2100 },
-  {
-    code: "2110",
-    name: "Credit Cards",
-    type: "LIABILITY",
-    sort: 2110,
-    parent: "2100",
-  },
-  {
-    code: "2120",
-    name: "Line of Credit",
-    type: "LIABILITY",
-    sort: 2120,
-    parent: "2100",
-  },
-
-  { code: "2200", name: "Payroll Liabilities", type: "LIABILITY", sort: 2200 },
-  {
-    code: "2210",
-    name: "CPP Payable",
-    type: "LIABILITY",
-    sort: 2210,
-    parent: "2200",
-  },
-  {
-    code: "2220",
-    name: "EI Payable",
-    type: "LIABILITY",
-    sort: 2220,
-    parent: "2200",
-  },
-  {
-    code: "2230",
-    name: "Income Tax Payable",
-    type: "LIABILITY",
-    sort: 2230,
-    parent: "2200",
-  },
-
-  { code: "2300", name: "Sales Tax Payable", type: "LIABILITY", sort: 2300 },
-  {
-    code: "2310",
-    name: "GST/HST Payable",
-    type: "LIABILITY",
-    sort: 2310,
-    parent: "2300",
-  },
-  {
-    code: "2320",
-    name: "PST Payable",
-    type: "LIABILITY",
-    sort: 2320,
-    parent: "2300",
-  },
-
-  { code: "2500", name: "Long-term Debt", type: "LIABILITY", sort: 2500 },
-  {
-    code: "2510",
-    name: "Bank Loans",
-    type: "LIABILITY",
-    sort: 2510,
-    parent: "2500",
-  },
-  {
-    code: "2520",
-    name: "Equipment Loans",
-    type: "LIABILITY",
-    sort: 2520,
-    parent: "2500",
-  },
-
-  // EQUITY (3000-3999)
-  { code: "3000", name: "Owner's Equity", type: "EQUITY", sort: 3000 },
-  {
-    code: "3010",
-    name: "Owner's Capital",
-    type: "EQUITY",
-    sort: 3010,
-    parent: "3000",
-  },
-  {
-    code: "3020",
-    name: "Owner's Drawings",
-    type: "EQUITY",
-    sort: 3020,
-    parent: "3000",
-  },
-  { code: "3100", name: "Retained Earnings", type: "EQUITY", sort: 3100 },
-  { code: "3200", name: "Current Year Earnings", type: "EQUITY", sort: 3200 },
-
-  // INCOME (4000-4999)
-  { code: "4000", name: "Revenue", type: "INCOME", sort: 4000 },
-  {
-    code: "4010",
-    name: "Sales Revenue",
-    type: "INCOME",
-    sort: 4010,
-    parent: "4000",
-  },
-  {
-    code: "4020",
-    name: "Service Revenue",
-    type: "INCOME",
-    sort: 4020,
-    parent: "4000",
-  },
-  {
-    code: "4030",
-    name: "Consulting Revenue",
-    type: "INCOME",
-    sort: 4030,
-    parent: "4000",
-  },
-
-  { code: "4100", name: "Other Income", type: "INCOME", sort: 4100 },
-  {
-    code: "4110",
-    name: "Interest Income",
-    type: "INCOME",
-    sort: 4110,
-    parent: "4100",
-  },
-  {
-    code: "4120",
-    name: "Dividend Income",
-    type: "INCOME",
-    sort: 4120,
-    parent: "4100",
-  },
-  {
-    code: "4130",
-    name: "Gain on Sale of Assets",
-    type: "INCOME",
-    sort: 4130,
-    parent: "4100",
-  },
-
-  // EXPENSES (5000-9999)
-  { code: "5000", name: "Cost of Goods Sold", type: "EXPENSE", sort: 5000 },
-  {
-    code: "5010",
-    name: "Materials",
-    type: "EXPENSE",
-    sort: 5010,
-    parent: "5000",
-  },
-  {
-    code: "5020",
-    name: "Direct Labor",
-    type: "EXPENSE",
-    sort: 5020,
-    parent: "5000",
-  },
-  {
-    code: "5030",
-    name: "Manufacturing Overhead",
-    type: "EXPENSE",
-    sort: 5030,
-    parent: "5000",
-  },
-
-  { code: "6000", name: "Operating Expenses", type: "EXPENSE", sort: 6000 },
-  {
-    code: "6010",
-    name: "Advertising & Marketing",
-    type: "EXPENSE",
-    sort: 6010,
-    parent: "6000",
-  },
-  {
-    code: "6020",
-    name: "Office Supplies",
-    type: "EXPENSE",
-    sort: 6020,
-    parent: "6000",
-  },
-  {
-    code: "6030",
-    name: "Professional Fees",
-    type: "EXPENSE",
-    sort: 6030,
-    parent: "6000",
-  },
-  {
-    code: "6040",
-    name: "Insurance",
-    type: "EXPENSE",
-    sort: 6040,
-    parent: "6000",
-  },
-  { code: "6050", name: "Rent", type: "EXPENSE", sort: 6050, parent: "6000" },
-  {
-    code: "6060",
-    name: "Utilities",
-    type: "EXPENSE",
-    sort: 6060,
-    parent: "6000",
-  },
-  {
-    code: "6070",
-    name: "Telephone",
-    type: "EXPENSE",
-    sort: 6070,
-    parent: "6000",
-  },
-  {
-    code: "6080",
-    name: "Internet",
-    type: "EXPENSE",
-    sort: 6080,
-    parent: "6000",
-  },
-  {
-    code: "6090",
-    name: "Software Subscriptions",
-    type: "EXPENSE",
-    sort: 6090,
-    parent: "6000",
-  },
-
-  { code: "6100", name: "Travel & Entertainment", type: "EXPENSE", sort: 6100 },
-  { code: "6110", name: "Travel", type: "EXPENSE", sort: 6110, parent: "6100" },
-  {
-    code: "6120",
-    name: "Meals & Entertainment",
-    type: "EXPENSE",
-    sort: 6120,
-    parent: "6100",
-  },
-
-  { code: "6200", name: "Vehicle Expenses", type: "EXPENSE", sort: 6200 },
-  { code: "6210", name: "Fuel", type: "EXPENSE", sort: 6210, parent: "6200" },
-  {
-    code: "6220",
-    name: "Vehicle Maintenance",
-    type: "EXPENSE",
-    sort: 6220,
-    parent: "6200",
-  },
-  {
-    code: "6230",
-    name: "Vehicle Insurance",
-    type: "EXPENSE",
-    sort: 6230,
-    parent: "6200",
-  },
-
-  { code: "7000", name: "Payroll Expenses", type: "EXPENSE", sort: 7000 },
-  {
-    code: "7010",
-    name: "Salaries & Wages",
-    type: "EXPENSE",
-    sort: 7010,
-    parent: "7000",
-  },
-  {
-    code: "7020",
-    name: "CPP Expense",
-    type: "EXPENSE",
-    sort: 7020,
-    parent: "7000",
-  },
-  {
-    code: "7030",
-    name: "EI Expense",
-    type: "EXPENSE",
-    sort: 7030,
-    parent: "7000",
-  },
-  {
-    code: "7040",
-    name: "Workers Compensation",
-    type: "EXPENSE",
-    sort: 7040,
-    parent: "7000",
-  },
-
-  { code: "8000", name: "Financial Expenses", type: "EXPENSE", sort: 8000 },
-  {
-    code: "8010",
-    name: "Interest Expense",
-    type: "EXPENSE",
-    sort: 8010,
-    parent: "8000",
-  },
-  {
-    code: "8020",
-    name: "Bank Charges",
-    type: "EXPENSE",
-    sort: 8020,
-    parent: "8000",
-  },
-  {
-    code: "8030",
-    name: "Credit Card Fees",
-    type: "EXPENSE",
-    sort: 8030,
-    parent: "8000",
-  },
-
-  { code: "9000", name: "Other Expenses", type: "EXPENSE", sort: 9000 },
-  {
-    code: "9010",
-    name: "Depreciation",
-    type: "EXPENSE",
-    sort: 9010,
-    parent: "9000",
-  },
-  {
-    code: "9020",
-    name: "Bad Debt",
-    type: "EXPENSE",
-    sort: 9020,
-    parent: "9000",
-  },
-  {
-    code: "9030",
-    name: "Miscellaneous",
-    type: "EXPENSE",
-    sort: 9030,
-    parent: "9000",
-  },
-] as const;
+import { CHART_OF_ACCOUNTS } from "@/lib/constants/chart-of-accounts";
 
 /**
- * Create default Chart of Accounts for a new business
- * 
- * This function is only called once during business setup to create the
- * standard Chart of Accounts. After initial setup, all category management
- * must go through the createAccount function.
+ * Create Chart of Accounts for a new business based on client requirements
  */
 export async function createDefaultChartOfAccounts(
   businessId: string,
   userId: string
 ) {
   try {
-    // Prepare all parent accounts for batch creation
-    const parentAccounts = DEFAULT_CHART_OF_ACCOUNTS.filter(account => !account.parent);
-    const childAccounts = DEFAULT_CHART_OF_ACCOUNTS.filter(account => account.parent);
-
-    // Create all parent accounts in a single transaction
-    const parentCreateData = parentAccounts.map(account => ({
+    // Create accounts from the client's Chart of Accounts
+    const accountsToCreate = CHART_OF_ACCOUNTS.map(account => ({
       businessId,
       accountCode: account.code,
       name: account.name,
+      description: account.description,
       accountType: account.type as "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE",
       isDefault: true,
-      sortOrder: account.sort,
+      sortOrder: parseInt(account.code),
       creatorId: userId,
     }));
 
     await db.category.createMany({
-      data: parentCreateData,
-    });
-
-    // Get created parent accounts to map codes to IDs
-    const createdParents = await db.category.findMany({
-      where: {
-        businessId,
-        accountCode: { in: parentAccounts.map(a => a.code) },
-      },
-      select: { id: true, accountCode: true },
-    });
-
-    const parentMap = new Map(createdParents.map(p => [p.accountCode, p.id]));
-
-    // Create child accounts with parent references
-    const childCreateData = childAccounts
-      .filter(account => parentMap.has(account.parent!))
-      .map(account => ({
-        businessId,
-        accountCode: account.code,
-        name: account.name,
-        accountType: account.type as "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE",
-        parentId: parentMap.get(account.parent!)!,
-        isDefault: true,
-        sortOrder: account.sort,
-        creatorId: userId,
-      }));
-
-    await db.category.createMany({
-      data: childCreateData,
+      data: accountsToCreate,
     });
 
     return {
       success: true,
-      message: "Default Chart of Accounts created successfully",
+      message: "Chart of Accounts created successfully",
     };
   } catch (error) {
-    console.error("Error creating default chart of accounts:", error);
+    console.error("Error creating chart of accounts:", error);
     return {
       success: false,
-      error: "Failed to create default chart of accounts",
+      error: "Failed to create chart of accounts",
     };
   }
 }
@@ -808,5 +324,85 @@ export async function deactivateAccount(accountId: string) {
   } catch (error) {
     console.error("Error deactivating account:", error);
     return { success: false, error: "Failed to deactivate account" };
+  }
+}
+
+/**
+ * Update existing Chart of Accounts to match the current requirements.
+ * This function updates or creates accounts to ensure they match the defined structure.
+ * 
+ * @param businessId - Optional business ID to update (uses current business if not provided)
+ * @returns Success status and message
+ */
+export async function updateChartOfAccounts(businessId?: string) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    // Get business ID
+    let targetBusinessId = businessId;
+    if (!targetBusinessId) {
+      const currentBusinessId = await getCurrentBusinessId();
+      if (!currentBusinessId) {
+        return { success: false, error: "No business found" };
+      }
+      targetBusinessId = currentBusinessId;
+    }
+
+    // Use the Chart of Accounts from constants
+    const clientAccounts = CHART_OF_ACCOUNTS;
+
+    // Process each account
+    for (const account of clientAccounts) {
+      // Check if account exists
+      const existingAccount = await db.category.findFirst({
+        where: {
+          businessId: targetBusinessId,
+          accountCode: account.code,
+        },
+      });
+
+      if (existingAccount) {
+        // Update existing account
+        await db.category.update({
+          where: { id: existingAccount.id },
+          data: {
+            name: account.name,
+            description: account.description,
+            accountType: account.type as "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE",
+            isActive: true,
+            sortOrder: parseInt(account.code),
+          },
+        });
+      } else {
+        // Create new account
+        await db.category.create({
+          data: {
+            businessId: targetBusinessId,
+            accountCode: account.code,
+            name: account.name,
+            description: account.description,
+            accountType: account.type as "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE",
+            isActive: true,
+            isDefault: false,
+            sortOrder: parseInt(account.code),
+            creatorId: session.user.id,
+          },
+        });
+      }
+    }
+
+    return {
+      success: true,
+      message: "Chart of Accounts updated successfully",
+    };
+  } catch (error) {
+    console.error("Error updating Chart of Accounts:", error);
+    return {
+      success: false,
+      error: "Failed to import Chart of Accounts",
+    };
   }
 }

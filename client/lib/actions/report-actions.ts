@@ -601,6 +601,21 @@ export async function generateBalanceSheetReport(
       orderBy: [{ sortOrder: "asc" }, { accountCode: "asc" }],
     });
 
+    // Get all bank accounts with their current balances
+    const bankAccounts = await db.bankAccount.findMany({
+      where: {
+        businessId: business.id,
+      },
+      select: {
+        id: true,
+        name: true,
+        accountType: true,
+        balance: true,
+        isManual: true,
+        institution: true,
+      },
+    });
+
     // Calculate balances for each account using journal entries
     const accountBalances = new Map<string, {
       category: typeof allCategories[0];
@@ -649,13 +664,35 @@ export async function generateBalanceSheetReport(
     let totalIncome = 0;
     let totalExpenses = 0;
 
-    // Assets
-    const assets = {
-      current: [] as Array<{ name: string; accountCode: string; amount: number }>,
-      nonCurrent: [] as Array<{ name: string; accountCode: string; amount: number }>,
-      total: 0,
+    // Create line item groups according to client's financial statement structure
+    const lineItemGroups = {
+      // Current Assets
+      cashAndBank: { name: "Cash and Bank", accounts: [] as Array<{ name: string; accountCode: string; amount: number }>, total: 0 },
+      accountsReceivable: { name: "Accounts Receivable", accounts: [] as Array<{ name: string; accountCode: string; amount: number }>, total: 0 },
+      inventory: { name: "Inventory", accounts: [] as Array<{ name: string; accountCode: string; amount: number }>, total: 0 },
+      prepaidExpenses: { name: "Prepaid Expenses", accounts: [] as Array<{ name: string; accountCode: string; amount: number }>, total: 0 },
+      // Non-Current Assets
+      fixedAssets: { name: "Fixed Assets", accounts: [] as Array<{ name: string; accountCode: string; amount: number }>, total: 0 },
+      otherAssets: { name: "Other Assets", accounts: [] as Array<{ name: string; accountCode: string; amount: number }>, total: 0 },
     };
 
+    // First, add bank accounts to Cash and Bank line item
+    for (const bankAccount of bankAccounts) {
+      if (bankAccount.accountType === "CHECKING" || bankAccount.accountType === "SAVINGS") {
+        const amount = bankAccount.balance;
+        if (amount !== 0) {
+          lineItemGroups.cashAndBank.accounts.push({
+            name: `${bankAccount.name} (${bankAccount.institution || 'Bank Account'})`,
+            accountCode: "1000", // Map to Cash GL code
+            amount: amount,
+          });
+          lineItemGroups.cashAndBank.total += amount;
+          totalAssets += amount;
+        }
+      }
+    }
+
+    // Then, add Chart of Accounts asset accounts to appropriate line items
     for (const account of assetAccounts) {
       const accountData = accountBalances.get(account.id);
       if (accountData && accountData.balance !== 0) {
@@ -665,25 +702,102 @@ export async function generateBalanceSheetReport(
           amount: Math.abs(accountData.balance),
         };
 
-        if (parseInt(account.accountCode) < 1500) {
-          assets.current.push(item);
-        } else {
-          assets.nonCurrent.push(item);
+        // Group accounts by GL code ranges according to client's CSV
+        const code = parseInt(account.accountCode);
+        if (code >= 1000 && code < 1100) {
+          // Cash accounts (1000-1099)
+          lineItemGroups.cashAndBank.accounts.push(item);
+          lineItemGroups.cashAndBank.total += accountData.balance;
+        } else if (code >= 1100 && code < 1200) {
+          // Accounts Receivable (1100-1199)
+          lineItemGroups.accountsReceivable.accounts.push(item);
+          lineItemGroups.accountsReceivable.total += accountData.balance;
+        } else if (code >= 1200 && code < 1300) {
+          // Inventory (1200-1299)
+          lineItemGroups.inventory.accounts.push(item);
+          lineItemGroups.inventory.total += accountData.balance;
+        } else if (code >= 1300 && code < 1400) {
+          // Prepaid Expenses (1300-1399)
+          lineItemGroups.prepaidExpenses.accounts.push(item);
+          lineItemGroups.prepaidExpenses.total += accountData.balance;
+        } else if (code >= 1400 && code < 1500) {
+          // Fixed Assets (1400-1499)
+          lineItemGroups.fixedAssets.accounts.push(item);
+          lineItemGroups.fixedAssets.total += accountData.balance;
+        } else if (code >= 1500) {
+          // Other Assets (1500+)
+          lineItemGroups.otherAssets.accounts.push(item);
+          lineItemGroups.otherAssets.total += accountData.balance;
         }
         
         totalAssets += accountData.balance;
       }
     }
 
-    assets.total = totalAssets;
-
-    // Liabilities
-    const liabilities = {
-      current: [] as Array<{ name: string; accountCode: string; amount: number }>,
-      nonCurrent: [] as Array<{ name: string; accountCode: string; amount: number }>,
-      total: 0,
+    // Build assets structure with line items
+    const assets = {
+      current: [] as Array<{ name: string; accounts: Array<{ name: string; accountCode: string; amount: number }>; total: number }>,
+      nonCurrent: [] as Array<{ name: string; accounts: Array<{ name: string; accountCode: string; amount: number }>; total: number }>,
+      total: totalAssets,
     };
 
+    // Add current asset line items
+    if (lineItemGroups.cashAndBank.total !== 0) {
+      assets.current.push(lineItemGroups.cashAndBank);
+    }
+    if (lineItemGroups.accountsReceivable.total !== 0) {
+      assets.current.push(lineItemGroups.accountsReceivable);
+    }
+    if (lineItemGroups.inventory.total !== 0) {
+      assets.current.push(lineItemGroups.inventory);
+    }
+    if (lineItemGroups.prepaidExpenses.total !== 0) {
+      assets.current.push(lineItemGroups.prepaidExpenses);
+    }
+
+    // Add non-current asset line items
+    if (lineItemGroups.fixedAssets.total !== 0) {
+      assets.nonCurrent.push(lineItemGroups.fixedAssets);
+    }
+    if (lineItemGroups.otherAssets.total !== 0) {
+      assets.nonCurrent.push(lineItemGroups.otherAssets);
+    }
+
+    // Create liability line item groups
+    const liabilityLineItems = {
+      // Current Liabilities
+      accountsPayable: { name: "Accounts Payable", accounts: [] as Array<{ name: string; accountCode: string; amount: number }>, total: 0 },
+      creditCardsPayable: { name: "Credit Cards Payable", accounts: [] as Array<{ name: string; accountCode: string; amount: number }>, total: 0 },
+      loans: { name: "Loans", accounts: [] as Array<{ name: string; accountCode: string; amount: number }>, total: 0 },
+      otherLiabilities: { name: "Other liabilities", accounts: [] as Array<{ name: string; accountCode: string; amount: number }>, total: 0 },
+    };
+
+    // First, add bank liability accounts
+    for (const bankAccount of bankAccounts) {
+      // For liability accounts, negative balance means we owe money
+      // Display as positive on the Balance Sheet
+      const amount = -bankAccount.balance;
+      
+      if (bankAccount.accountType === "CREDIT_CARD" && amount > 0) {
+        liabilityLineItems.creditCardsPayable.accounts.push({
+          name: `${bankAccount.name} (${bankAccount.institution || 'Credit Card'})`,
+          accountCode: "2100", // Credit cards payable
+          amount: amount,
+        });
+        liabilityLineItems.creditCardsPayable.total += amount;
+        totalLiabilities += amount;
+      } else if ((bankAccount.accountType === "LINE_OF_CREDIT" || bankAccount.accountType === "LOAN") && amount > 0) {
+        liabilityLineItems.loans.accounts.push({
+          name: `${bankAccount.name} (${bankAccount.institution || 'Loan'})`,
+          accountCode: "2400", // Loans payable
+          amount: amount,
+        });
+        liabilityLineItems.loans.total += amount;
+        totalLiabilities += amount;
+      }
+    }
+
+    // Then, add Chart of Accounts liability accounts
     for (const account of liabilityAccounts) {
       const accountData = accountBalances.get(account.id);
       if (accountData && accountData.balance !== 0) {
@@ -693,17 +807,50 @@ export async function generateBalanceSheetReport(
           amount: Math.abs(accountData.balance),
         };
 
-        if (parseInt(account.accountCode) < 2500) {
-          liabilities.current.push(item);
+        // Group accounts by GL code ranges according to client's CSV
+        const code = parseInt(account.accountCode);
+        if (code >= 2000 && code < 2100) {
+          // Accounts Payable (2000-2099)
+          liabilityLineItems.accountsPayable.accounts.push(item);
+          liabilityLineItems.accountsPayable.total += accountData.balance;
+        } else if (code >= 2100 && code < 2200) {
+          // Credit Cards Payable (2100-2199)
+          liabilityLineItems.creditCardsPayable.accounts.push(item);
+          liabilityLineItems.creditCardsPayable.total += accountData.balance;
+        } else if (code >= 2400 && code < 2600) {
+          // Loans (2400-2599)
+          liabilityLineItems.loans.accounts.push(item);
+          liabilityLineItems.loans.total += accountData.balance;
         } else {
-          liabilities.nonCurrent.push(item);
+          // Other liabilities (2200-2399, 2600+)
+          liabilityLineItems.otherLiabilities.accounts.push(item);
+          liabilityLineItems.otherLiabilities.total += accountData.balance;
         }
         
         totalLiabilities += accountData.balance;
       }
     }
 
-    liabilities.total = totalLiabilities;
+    // Build liabilities structure with line items
+    const liabilities = {
+      current: [] as Array<{ name: string; accounts: Array<{ name: string; accountCode: string; amount: number }>; total: number }>,
+      nonCurrent: [] as Array<{ name: string; accounts: Array<{ name: string; accountCode: string; amount: number }>; total: number }>,
+      total: totalLiabilities,
+    };
+
+    // Add liability line items (all as current for now, based on client's CSV)
+    if (liabilityLineItems.accountsPayable.total !== 0) {
+      liabilities.current.push(liabilityLineItems.accountsPayable);
+    }
+    if (liabilityLineItems.creditCardsPayable.total !== 0) {
+      liabilities.current.push(liabilityLineItems.creditCardsPayable);
+    }
+    if (liabilityLineItems.loans.total !== 0) {
+      liabilities.current.push(liabilityLineItems.loans);
+    }
+    if (liabilityLineItems.otherLiabilities.total !== 0) {
+      liabilities.current.push(liabilityLineItems.otherLiabilities);
+    }
 
     // Calculate net income (Income - Expenses)
     for (const account of incomeAccounts) {
@@ -722,49 +869,77 @@ export async function generateBalanceSheetReport(
 
     const netIncome = totalIncome - totalExpenses;
 
-    // Equity (including retained earnings)
-    const equity = {
-      items: [] as Array<{ name: string; accountCode: string; amount: number }>,
-      retainedEarnings: 0,
-      currentYearEarnings: netIncome,
-      total: 0,
+    // Create equity line item group
+    const equityLineItems = {
+      equity: { name: "Equity", accounts: [] as Array<{ name: string; accountCode: string; amount: number }>, total: 0 },
     };
+
+    // Process equity accounts
+    let hasRetainedEarningsAccount = false;
 
     for (const account of equityAccounts) {
       const accountData = accountBalances.get(account.id);
+      
+      // Check if this is retained earnings account
+      if (account.accountCode === "3100" || account.name.toLowerCase().includes("retained earnings")) {
+        hasRetainedEarningsAccount = true;
+      }
+      
       if (accountData && accountData.balance !== 0) {
-        if (account.accountCode === "3999" || account.name.toLowerCase().includes("retained")) {
-          equity.retainedEarnings += accountData.balance;
-        } else {
-          equity.items.push({
-            name: account.name,
-            accountCode: account.accountCode,
-            amount: Math.abs(accountData.balance),
-          });
-        }
-        
+        equityLineItems.equity.accounts.push({
+          name: account.name,
+          accountCode: account.accountCode,
+          amount: accountData.balance,
+        });
+        equityLineItems.equity.total += accountData.balance;
         totalEquity += accountData.balance;
       }
     }
 
-    // Add current year earnings to equity
+    // Always show retained earnings, even if zero
+    if (!hasRetainedEarningsAccount) {
+      equityLineItems.equity.accounts.push({
+        name: "Retained Earnings",
+        accountCode: "3100",
+        amount: 0,
+      });
+    }
+
+    // Add current year earnings as a separate account
+    equityLineItems.equity.accounts.push({
+      name: "Current Year Earnings",
+      accountCode: "3200",
+      amount: netIncome,
+    });
+    equityLineItems.equity.total += netIncome;
+
+    // Add current year earnings to total equity
     totalEquity += netIncome;
-    equity.total = totalEquity;
+
+    // Build equity structure
+    const equity = {
+      items: [] as Array<{ name: string; accounts: Array<{ name: string; accountCode: string; amount: number }>; total: number }>,
+      total: totalEquity,
+    };
+
+    if (equityLineItems.equity.accounts.length > 0) {
+      equity.items.push(equityLineItems.equity);
+    }
 
     // Check if balance sheet balances
     const difference = totalAssets - (totalLiabilities + totalEquity);
     const isBalanced = Math.abs(difference) < 0.01; // Allow for small rounding differences
 
-    // Convert to proper BalanceSheetData format
+    // Convert to proper BalanceSheetData format with line items
     const balanceSheetData: BalanceSheetData = {
       period: `As of ${validatedData.endDate.toLocaleDateString()}`,
       asOfDate: validatedData.endDate.toISOString(),
       assets: {
-        currentAssets: assets.current.map(item => ({
-          name: item.name,
-          amount: item.amount,
+        currentAssets: assets.current.map(lineItem => ({
+          name: lineItem.name,
+          amount: lineItem.total,
           reconciliation: {
-            totalAmount: item.amount,
+            totalAmount: lineItem.total,
             matchedAmount: 0,
             unmatchedAmount: 0,
             pendingReviewAmount: 0,
@@ -772,14 +947,28 @@ export async function generateBalanceSheetReport(
             unmatchedCount: 0,
             matchedCount: 0,
             pendingReviewCount: 0,
-          }
+          },
+          subItems: lineItem.accounts.map(acc => ({
+            name: acc.name,
+            amount: acc.amount,
+            reconciliation: {
+              totalAmount: acc.amount,
+              matchedAmount: 0,
+              unmatchedAmount: 0,
+              pendingReviewAmount: 0,
+              matchedPercentage: 0,
+              unmatchedCount: 0,
+              matchedCount: 0,
+              pendingReviewCount: 0,
+            }
+          }))
         })),
-        totalCurrentAssets: assets.current.reduce((sum, item) => sum + item.amount, 0),
-        nonCurrentAssets: assets.nonCurrent.map(item => ({
-          name: item.name,
-          amount: item.amount,
+        totalCurrentAssets: assets.current.reduce((sum, item) => sum + item.total, 0),
+        nonCurrentAssets: assets.nonCurrent.map(lineItem => ({
+          name: lineItem.name,
+          amount: lineItem.total,
           reconciliation: {
-            totalAmount: item.amount,
+            totalAmount: lineItem.total,
             matchedAmount: 0,
             unmatchedAmount: 0,
             pendingReviewAmount: 0,
@@ -787,9 +976,23 @@ export async function generateBalanceSheetReport(
             unmatchedCount: 0,
             matchedCount: 0,
             pendingReviewCount: 0,
-          }
+          },
+          subItems: lineItem.accounts.map(acc => ({
+            name: acc.name,
+            amount: acc.amount,
+            reconciliation: {
+              totalAmount: acc.amount,
+              matchedAmount: 0,
+              unmatchedAmount: 0,
+              pendingReviewAmount: 0,
+              matchedPercentage: 0,
+              unmatchedCount: 0,
+              matchedCount: 0,
+              pendingReviewCount: 0,
+            }
+          }))
         })),
-        totalNonCurrentAssets: assets.nonCurrent.reduce((sum, item) => sum + item.amount, 0),
+        totalNonCurrentAssets: assets.nonCurrent.reduce((sum, item) => sum + item.total, 0),
         totalAssets,
         assetsReconciliation: {
           totalAmount: totalAssets,
@@ -803,11 +1006,11 @@ export async function generateBalanceSheetReport(
         }
       },
       liabilities: {
-        currentLiabilities: liabilities.current.map(item => ({
-          name: item.name,
-          amount: item.amount,
+        currentLiabilities: liabilities.current.map(lineItem => ({
+          name: lineItem.name,
+          amount: lineItem.total,
           reconciliation: {
-            totalAmount: item.amount,
+            totalAmount: lineItem.total,
             matchedAmount: 0,
             unmatchedAmount: 0,
             pendingReviewAmount: 0,
@@ -815,14 +1018,28 @@ export async function generateBalanceSheetReport(
             unmatchedCount: 0,
             matchedCount: 0,
             pendingReviewCount: 0,
-          }
+          },
+          subItems: lineItem.accounts.map(acc => ({
+            name: acc.name,
+            amount: acc.amount,
+            reconciliation: {
+              totalAmount: acc.amount,
+              matchedAmount: 0,
+              unmatchedAmount: 0,
+              pendingReviewAmount: 0,
+              matchedPercentage: 0,
+              unmatchedCount: 0,
+              matchedCount: 0,
+              pendingReviewCount: 0,
+            }
+          }))
         })),
-        totalCurrentLiabilities: liabilities.current.reduce((sum, item) => sum + item.amount, 0),
-        nonCurrentLiabilities: liabilities.nonCurrent.map(item => ({
-          name: item.name,
-          amount: item.amount,
+        totalCurrentLiabilities: liabilities.current.reduce((sum, item) => sum + item.total, 0),
+        nonCurrentLiabilities: liabilities.nonCurrent.map(lineItem => ({
+          name: lineItem.name,
+          amount: lineItem.total,
           reconciliation: {
-            totalAmount: item.amount,
+            totalAmount: lineItem.total,
             matchedAmount: 0,
             unmatchedAmount: 0,
             pendingReviewAmount: 0,
@@ -830,9 +1047,23 @@ export async function generateBalanceSheetReport(
             unmatchedCount: 0,
             matchedCount: 0,
             pendingReviewCount: 0,
-          }
+          },
+          subItems: lineItem.accounts.map(acc => ({
+            name: acc.name,
+            amount: acc.amount,
+            reconciliation: {
+              totalAmount: acc.amount,
+              matchedAmount: 0,
+              unmatchedAmount: 0,
+              pendingReviewAmount: 0,
+              matchedPercentage: 0,
+              unmatchedCount: 0,
+              matchedCount: 0,
+              pendingReviewCount: 0,
+            }
+          }))
         })),
-        totalNonCurrentLiabilities: liabilities.nonCurrent.reduce((sum, item) => sum + item.amount, 0),
+        totalNonCurrentLiabilities: liabilities.nonCurrent.reduce((sum, item) => sum + item.total, 0),
         totalLiabilities,
         liabilitiesReconciliation: {
           totalAmount: totalLiabilities,
@@ -846,40 +1077,24 @@ export async function generateBalanceSheetReport(
         }
       },
       equity: {
-        equityItems: [
-          ...equity.items.map(item => ({
-            name: item.name,
-            amount: item.amount,
-            reconciliation: {
-              totalAmount: item.amount,
-              matchedAmount: 0,
-              unmatchedAmount: 0,
-              pendingReviewAmount: 0,
-              matchedPercentage: 0,
-              unmatchedCount: 0,
-              matchedCount: 0,
-              pendingReviewCount: 0,
-            }
-          })),
-          {
-            name: "Retained Earnings",
-            amount: equity.retainedEarnings,
-            reconciliation: {
-              totalAmount: equity.retainedEarnings,
-              matchedAmount: 0,
-              unmatchedAmount: 0,
-              pendingReviewAmount: 0,
-              matchedPercentage: 0,
-              unmatchedCount: 0,
-              matchedCount: 0,
-              pendingReviewCount: 0,
-            }
+        equityItems: equity.items.map(lineItem => ({
+          name: lineItem.name,
+          amount: lineItem.total,
+          reconciliation: {
+            totalAmount: lineItem.total,
+            matchedAmount: 0,
+            unmatchedAmount: 0,
+            pendingReviewAmount: 0,
+            matchedPercentage: 0,
+            unmatchedCount: 0,
+            matchedCount: 0,
+            pendingReviewCount: 0,
           },
-          {
-            name: "Current Year Earnings",
-            amount: equity.currentYearEarnings,
+          subItems: lineItem.accounts.map(acc => ({
+            name: acc.name,
+            amount: acc.amount,
             reconciliation: {
-              totalAmount: equity.currentYearEarnings,
+              totalAmount: acc.amount,
               matchedAmount: 0,
               unmatchedAmount: 0,
               pendingReviewAmount: 0,
@@ -888,8 +1103,8 @@ export async function generateBalanceSheetReport(
               matchedCount: 0,
               pendingReviewCount: 0,
             }
-          }
-        ],
+          }))
+        })),
         totalEquity,
         equityReconciliation: {
           totalAmount: totalEquity,

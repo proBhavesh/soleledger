@@ -56,10 +56,10 @@ export interface DuplicateCheckResult {
  * Batch import transaction with optional selection
  */
 export interface BatchImportTransaction {
-  date: string;
+  date: Date;
   description: string;
   amount: number;
-  type: "debit" | "credit";
+  type: "INCOME" | "EXPENSE" | "TRANSFER";
   balance?: number;
   reference?: string;
   suggestedCategory?: string;
@@ -68,6 +68,11 @@ export interface BatchImportTransaction {
   principalAmount?: number;
   interestAmount?: number;
   selected?: boolean;
+  bankAccountId: string;
+  categoryId?: string;
+  vendor?: string | null;
+  externalId?: string | null;
+  pending?: boolean;
 }
 
 /**
@@ -193,4 +198,32 @@ export interface ChartOfAccountsMap {
   creditCardFees?: string;
   depreciation?: string;
   miscellaneous?: string;
+  otherExpense?: string;
+}
+
+/**
+ * Processing result for batch operations
+ */
+export interface ProcessingResult {
+  imported: number;
+  failed: number;
+  skipped: number;
+  errors: Array<{
+    batch?: number;
+    count?: number;
+    message?: string;
+    error?: string;
+  }>;
+  transactionIds: string[];
+}
+
+/**
+ * Progress tracking for batch processing
+ */
+export interface ProcessingProgress {
+  total: number;
+  processed: number;
+  currentBatch: number;
+  totalBatches: number;
+  status: 'processing' | 'completed' | 'failed';
 }

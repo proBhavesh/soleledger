@@ -346,12 +346,30 @@ export async function importBankStatementTransactions(request: {
       return { success: false, error: "No transactions selected for import" };
     }
 
+    // Transform transactions to match the new BatchImportTransaction format
+    const transformedTransactions = selectedTransactions.map(tx => ({
+      ...tx,
+      date: new Date(tx.date),
+      type: (tx.type === "credit" ? "INCOME" : "EXPENSE") as "INCOME" | "EXPENSE" | "TRANSFER",
+      bankAccountId: validatedData.bankAccountId,
+      categoryId: undefined,
+      vendor: null,
+      externalId: null,
+      pending: false,
+      balance: undefined,
+      reference: undefined,
+      transactionType: undefined,
+      taxAmount: undefined,
+      principalAmount: undefined,
+      interestAmount: undefined,
+    }));
+
     // Use optimized batch import with full Chart of Accounts support
     const result = await batchImportBankStatementTransactions({
       documentId: validatedData.documentId,
       bankAccountId: validatedData.bankAccountId,
       businessId,
-      transactions: selectedTransactions,
+      transactions: transformedTransactions,
     });
 
     if (!result.success) {
