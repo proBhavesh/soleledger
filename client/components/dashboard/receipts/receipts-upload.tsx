@@ -194,8 +194,7 @@ export function ReceiptsUpload({
               Drag & drop receipts here, or click to browse
             </p>
             <p className="text-sm text-muted-foreground">
-              Upload receipts, invoices, and financial documents (JPEG, PNG,
-              WebP, PDF up to 10MB)
+              Upload receipts and invoices (JPEG, PNG, WebP, PDF) to match with your bank transactions
             </p>
           </div>
         )}

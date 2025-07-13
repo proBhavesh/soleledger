@@ -102,14 +102,8 @@ export default function ReceiptsPage() {
           case "match":
             toast.success("Receipt matched to transaction successfully!");
             break;
-          case "split":
-            toast.success(`Created ${result.data?.transactionCount || 0} transactions from receipt`);
-            break;
-          case "create":
-            toast.success("Created new transaction from receipt");
-            break;
           case "skip":
-            toast.info("Receipt reconciliation skipped");
+            toast.info("Receipt skipped - you can match it later from the reconciliation page");
             break;
         }
         

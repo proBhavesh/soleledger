@@ -31,8 +31,6 @@ interface ReconciliationDialogProps {
 
 export type ReconciliationAction = 
   | { type: "match"; transactionId: string }
-  | { type: "split"; splits: Array<{ amount: number; category: string; description: string }> }
-  | { type: "create"; category?: string }
   | { type: "skip" };
 
 export function ReconciliationDialog({
@@ -42,15 +40,13 @@ export function ReconciliationDialog({
   onConfirm,
   isLoading = false,
 }: ReconciliationDialogProps) {
-  const [selectedAction, setSelectedAction] = useState<"match" | "split" | "create" | "skip">("match");
+  const [selectedAction, setSelectedAction] = useState<"match" | "skip">("match");
   const [selectedTransactionId, setSelectedTransactionId] = useState<string>("");
-  const [selectedSplits, setSelectedSplits] = useState<number[]>([]);
 
   if (!data) return null;
 
-  const { extractedData, suggestedMatches, suggestedSplits } = data;
+  const { extractedData, suggestedMatches } = data;
   const hasMatches = suggestedMatches.length > 0;
-  const hasSplits = extractedData.shouldSplit && suggestedSplits && suggestedSplits.length > 0;
 
   const handleConfirm = () => {
     switch (selectedAction) {
@@ -58,22 +54,6 @@ export function ReconciliationDialog({
         if (selectedTransactionId) {
           onConfirm({ type: "match", transactionId: selectedTransactionId });
         }
-        break;
-      case "split":
-        if (suggestedSplits && selectedSplits.length > 0) {
-          const splits = selectedSplits.map(index => suggestedSplits[index]).filter(Boolean);
-          onConfirm({ 
-            type: "split", 
-            splits: splits.map(s => ({
-              amount: s.amount,
-              category: s.category,
-              description: s.description,
-            }))
-          });
-        }
-        break;
-      case "create":
-        onConfirm({ type: "create", category: extractedData.items?.[0]?.category });
         break;
       case "skip":
         onConfirm({ type: "skip" });
@@ -85,9 +65,9 @@ export function ReconciliationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Reconcile Receipt</DialogTitle>
+          <DialogTitle>Match Receipt to Transaction</DialogTitle>
           <DialogDescription>
-            Review the extracted information and choose how to process this receipt.
+            Review the extracted information and match this receipt to an existing bank transaction.
           </DialogDescription>
         </DialogHeader>
 
@@ -162,10 +142,10 @@ export function ReconciliationDialog({
             <Separator />
 
             {/* Action Selection */}
-            <RadioGroup value={selectedAction} onValueChange={(value) => setSelectedAction(value as "match" | "split" | "create" | "skip")}>
+            <RadioGroup value={selectedAction} onValueChange={(value) => setSelectedAction(value as "match" | "skip")}>
               <div className="space-y-4">
                 {/* Match with existing transaction */}
-                {hasMatches && (
+                {hasMatches ? (
                   <div className="space-y-3">
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="match" id="match" />
@@ -211,67 +191,26 @@ export function ReconciliationDialog({
                       </div>
                     )}
                   </div>
-                )}
-
-                {/* Split into multiple transactions */}
-                {hasSplits && (
+                ) : (
                   <div className="space-y-3">
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="split" id="split" />
-                      <Label htmlFor="split" className="font-medium">
-                        Split into multiple transactions
-                      </Label>
-                    </div>
-                    {selectedAction === "split" && suggestedSplits && (
-                      <div className="ml-6 space-y-2">
-                        {suggestedSplits.map((split, index) => (
-                          <Card
-                            key={index}
-                            className={`cursor-pointer transition-colors ${
-                              selectedSplits.includes(index)
-                                ? "border-primary"
-                                : "hover:border-muted-foreground/50"
-                            }`}
-                            onClick={() => {
-                              setSelectedSplits(prev =>
-                                prev.includes(index)
-                                  ? prev.filter(i => i !== index)
-                                  : [...prev, index]
-                              );
-                            }}
-                          >
-                            <CardContent className="p-3">
-                              <div className="flex justify-between items-start">
-                                <div className="space-y-1">
-                                  <p className="text-sm font-medium">{split.description}</p>
-                                  <Badge variant="outline" className="text-xs">
-                                    {split.category}
-                                  </Badge>
-                                  <p className="text-xs text-muted-foreground">
-                                    Includes: {split.items.join(", ")}
-                                  </p>
-                                </div>
-                                <div className="text-right">
-                                  <p className="font-medium">
-                                    {formatCurrency(split.amount)}
-                                  </p>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    )}
+                    <Card className="border-orange-200 bg-orange-50">
+                      <CardContent className="p-4">
+                        <p className="text-sm text-orange-800">
+                          No matching bank transactions found for this receipt. 
+                          This might happen if:
+                        </p>
+                        <ul className="text-sm text-orange-700 mt-2 list-disc list-inside space-y-1">
+                          <li>The bank transaction hasn&apos;t been imported yet</li>
+                          <li>The amount or date differs significantly</li>
+                          <li>The transaction was already matched to another receipt</li>
+                        </ul>
+                        <p className="text-sm text-orange-800 mt-3">
+                          You can skip this receipt and match it later once the bank transaction is available.
+                        </p>
+                      </CardContent>
+                    </Card>
                   </div>
                 )}
-
-                {/* Create new transaction */}
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="create" id="create" />
-                  <Label htmlFor="create" className="font-medium">
-                    Create new transaction
-                  </Label>
-                </div>
 
                 {/* Skip for now */}
                 <div className="flex items-center space-x-2">
@@ -293,8 +232,7 @@ export function ReconciliationDialog({
             onClick={handleConfirm}
             disabled={
               isLoading ||
-              (selectedAction === "match" && !selectedTransactionId) ||
-              (selectedAction === "split" && selectedSplits.length === 0)
+              (selectedAction === "match" && !selectedTransactionId)
             }
           >
             {isLoading ? "Processing..." : "Confirm"}
