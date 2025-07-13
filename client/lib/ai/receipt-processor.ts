@@ -15,9 +15,23 @@ export const ReceiptDataSchema = z.object({
         description: z.string(),
         amount: z.number().optional(),
         quantity: z.number().optional(),
+        category: z.string().optional(),
+        taxAmount: z.number().optional(),
       })
     )
     .optional(),
+  suggestedSplits: z
+    .array(
+      z.object({
+        description: z.string(),
+        amount: z.number(),
+        category: z.string(),
+        taxAmount: z.number().optional(),
+        itemIndices: z.array(z.number()),
+      })
+    )
+    .optional(),
+  shouldSplit: z.boolean().optional(),
   confidence: z.number().min(0).max(1),
   notes: z.string().optional(),
 });
@@ -95,7 +109,7 @@ async function processReceiptWithClaude(
     If this is NOT a receipt, invoice, or financial document (e.g., it's a contract, article, personal photo, etc.), return:
     {
       "type": "other",
-      "currency": "USD",
+      "currency": "CAD",
       "confidence": 0,
       "notes": "This document does not appear to be a receipt or invoice"
     }
@@ -107,10 +121,20 @@ async function processReceiptWithClaude(
       "type": "receipt" | "invoice" | "statement" | "other",
       "vendor": "vendor name" (omit if not found),
       "amount": number (omit if not found),
-      "currency": "USD" (or other 3-letter currency code),
+      "currency": "CAD" (or other 3-letter currency code),
       "date": "YYYY-MM-DD" (omit if not found),
       "tax": number (omit if not found),
-      "items": [{"description": "string", "amount": number, "quantity": number}] (omit if not found),
+      "items": [{"description": "string", "amount": number, "quantity": number, "category": "suggested category", "taxAmount": number}] (omit if not found),
+      "shouldSplit": true/false (whether items should be separate transactions),
+      "suggestedSplits": [
+        {
+          "description": "combined description for this transaction",
+          "amount": number,
+          "category": "expense category",
+          "taxAmount": number,
+          "itemIndices": [0, 1] (which items from items array are included)
+        }
+      ] (only if shouldSplit is true),
       "confidence": number between 0 and 1,
       "notes": "any additional notes or explanation" (omit if not needed)
     }
@@ -118,11 +142,20 @@ async function processReceiptWithClaude(
     Instructions for financial documents:
     - Extract vendor name, total amount, date, tax amount if visible
     - Identify the document type (receipt, invoice, statement, other)
-    - List individual items if clearly visible
+    - List individual items with their amounts if clearly visible
+    - For each item, suggest an appropriate expense category (e.g., "Office Supplies", "Meals", "Software", "Travel", etc.)
+    - Analyze if items should be split into separate transactions:
+      * Set shouldSplit=true if items are from different expense categories
+      * Set shouldSplit=true if the receipt combines different types of purchases
+      * Group similar items together in suggestedSplits
     - Provide a confidence score (0-1) based on clarity and data visibility
     - For dates, use ISO format (YYYY-MM-DD)
     - If information is unclear or missing, omit those fields entirely
-    - Be precise and only extract information you can clearly see
+    
+    Common expense categories to consider:
+    - Office Supplies, Equipment, Software, Meals & Entertainment, Travel
+    - Professional Services, Insurance, Utilities, Rent, Marketing
+    - Vehicle Expenses, Bank Fees, Training, Subscriptions
     
     Special cases:
     - If document is unclear/corrupted: confidence = 0.1-0.3
@@ -146,8 +179,8 @@ async function processReceiptWithClaude(
   ];
 
   const requestBody = {
-    model: "claude-3-5-sonnet-20241022",
-    max_tokens: 1024,
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 32000,
     messages: [
       {
         role: "user",
@@ -249,6 +282,7 @@ export async function findTransactionMatches(
   const receiptAmount = Math.abs(receiptData.amount);
   const matches: TransactionMatch[] = [];
 
+  // First, look for exact or near-exact matches
   for (const transaction of transactions) {
     const transactionAmount = Math.abs(transaction.amount);
     const transactionDate = new Date(transaction.date);
@@ -265,46 +299,106 @@ export async function findTransactionMatches(
     const amountDiff = Math.abs(receiptAmount - transactionAmount);
     const amountTolerance = transactionAmount * 0.05;
 
-    if (amountDiff > amountTolerance) continue;
+    if (amountDiff <= amountTolerance) {
+      // Calculate confidence score
+      let confidence = 0.5; // Base score
 
-    // Calculate confidence score
-    let confidence = 0.5; // Base score
+      // Date proximity bonus (closer = higher score)
+      confidence += ((7 - daysDiff) / 7) * 0.3;
 
-    // Date proximity bonus (closer = higher score)
-    confidence += ((7 - daysDiff) / 7) * 0.3;
+      // Amount exactness bonus
+      const amountAccuracy = 1 - amountDiff / transactionAmount;
+      confidence += amountAccuracy * 0.3;
 
-    // Amount exactness bonus
-    const amountAccuracy = 1 - amountDiff / transactionAmount;
-    confidence += amountAccuracy * 0.3;
+      // Vendor name matching bonus
+      if (receiptData.vendor && transaction.description) {
+        const vendorSimilarity = calculateStringSimilarity(
+          receiptData.vendor.toLowerCase(),
+          transaction.description.toLowerCase()
+        );
+        confidence += vendorSimilarity * 0.2;
+      }
 
-    // Vendor name matching bonus
-    if (receiptData.vendor && transaction.description) {
-      const vendorSimilarity = calculateStringSimilarity(
-        receiptData.vendor.toLowerCase(),
-        transaction.description.toLowerCase()
+      // Create match reason
+      let matchReason = `Full amount match: $${receiptAmount.toFixed(
+        2
+      )} vs $${transactionAmount.toFixed(2)}`;
+      if (daysDiff === 0) {
+        matchReason += `, Same date`;
+      } else {
+        matchReason += `, ${daysDiff} day${daysDiff === 1 ? "" : "s"} apart`;
+      }
+
+      if (receiptData.vendor && transaction.description) {
+        matchReason += `, Vendor similarity`;
+      }
+
+      matches.push({
+        transactionId: transaction.id,
+        confidence: Math.min(confidence, 1),
+        matchReason,
+      });
+    }
+  }
+
+  // If we have line items, also look for partial matches
+  if (receiptData.items && receiptData.items.length > 0) {
+    for (const transaction of transactions) {
+      // Skip if already matched as full amount
+      if (matches.some(m => m.transactionId === transaction.id)) continue;
+
+      const transactionAmount = Math.abs(transaction.amount);
+      const transactionDate = new Date(transaction.date);
+
+      // Date matching (±7 days)
+      const daysDiff = Math.abs(
+        (receiptDate.getTime() - transactionDate.getTime()) /
+          (1000 * 60 * 60 * 24)
       );
-      confidence += vendorSimilarity * 0.2;
-    }
 
-    // Create match reason
-    let matchReason = `Amount match: $${receiptAmount.toFixed(
-      2
-    )} vs $${transactionAmount.toFixed(2)}`;
-    if (daysDiff === 0) {
-      matchReason += `, Same date`;
-    } else {
-      matchReason += `, ${daysDiff} day${daysDiff === 1 ? "" : "s"} apart`;
-    }
+      if (daysDiff > 7) continue;
 
-    if (receiptData.vendor && transaction.description) {
-      matchReason += `, Vendor similarity`;
+      // Check if transaction matches any line item
+      for (const item of receiptData.items) {
+        if (!item.amount) continue;
+        
+        const itemAmount = Math.abs(item.amount);
+        const itemDiff = Math.abs(itemAmount - transactionAmount);
+        const itemTolerance = itemAmount * 0.05;
+        
+        if (itemDiff <= itemTolerance) {
+          // Calculate confidence for partial match
+          let confidence = 0.3; // Lower base for partial matches
+          
+          // Date proximity bonus
+          confidence += ((7 - daysDiff) / 7) * 0.2;
+          
+          // Amount exactness bonus
+          const amountAccuracy = 1 - itemDiff / itemAmount;
+          confidence += amountAccuracy * 0.2;
+          
+          // Description matching
+          if (item.description && transaction.description) {
+            const descSimilarity = calculateStringSimilarity(
+              item.description.toLowerCase(),
+              transaction.description.toLowerCase()
+            );
+            confidence += descSimilarity * 0.15;
+          }
+          
+          // Create match reason
+          let matchReason = `Partial match - ${item.description || 'line item'}: $${itemAmount.toFixed(2)}`;
+          matchReason += `, ${daysDiff} day${daysDiff === 1 ? "" : "s"} apart`;
+          
+          matches.push({
+            transactionId: transaction.id,
+            confidence: Math.min(confidence, 0.8), // Cap partial matches
+            matchReason,
+          });
+          break; // Only match once per transaction
+        }
+      }
     }
-
-    matches.push({
-      transactionId: transaction.id,
-      confidence: Math.min(confidence, 1),
-      matchReason,
-    });
   }
 
   // Sort by confidence (highest first)

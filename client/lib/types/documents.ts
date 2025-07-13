@@ -35,7 +35,18 @@ export interface ExtractedReceiptData {
     description: string;
     amount?: number;
     quantity?: number;
+    category?: string; // Suggested expense category
+    taxAmount?: number; // Item-specific tax if applicable
   }>;
+  // New fields for transaction splitting
+  suggestedSplits?: Array<{
+    description: string;
+    amount: number;
+    category: string;
+    taxAmount?: number;
+    itemIndices: number[]; // Which items from the items array
+  }>;
+  shouldSplit?: boolean; // AI recommendation on whether to split
   confidence: number;
   notes?: string;
 }
@@ -106,6 +117,30 @@ export type ProcessResult = ActionResult<{
   extractedData: ExtractedReceiptData;
   matches: DocumentMatch[];
 }>;
+
+// Reconciliation dialog types
+export interface ReconciliationDialogData {
+  document: ProcessedDocument;
+  extractedData: ExtractedReceiptData;
+  suggestedMatches: Array<{
+    transaction: {
+      id: string;
+      date: Date;
+      amount: number;
+      description: string;
+      categoryName?: string;
+    };
+    confidence: number;
+    matchReason: string;
+  }>;
+  suggestedSplits?: Array<{
+    description: string;
+    amount: number;
+    category: string;
+    taxAmount?: number;
+    items: string[]; // Item descriptions
+  }>;
+}
 export type RecentDocumentsResult = ActionResult<{
   documents: RecentDocument[];
 }>;
@@ -152,12 +187,16 @@ export function validateExtractedData(
       : "other") as ExtractedReceiptData["type"],
     vendor: typeof obj.vendor === "string" ? obj.vendor : undefined,
     amount: typeof obj.amount === "number" ? obj.amount : undefined,
-    currency: typeof obj.currency === "string" ? obj.currency : "USD",
+    currency: typeof obj.currency === "string" ? obj.currency : "CAD",
     date: typeof obj.date === "string" ? obj.date : undefined,
     tax: typeof obj.tax === "number" ? obj.tax : undefined,
     items: Array.isArray(obj.items)
       ? (obj.items as ExtractedReceiptData["items"])
       : undefined,
+    suggestedSplits: Array.isArray(obj.suggestedSplits)
+      ? (obj.suggestedSplits as ExtractedReceiptData["suggestedSplits"])
+      : undefined,
+    shouldSplit: typeof obj.shouldSplit === "boolean" ? obj.shouldSplit : undefined,
     confidence: typeof obj.confidence === "number" ? obj.confidence : 0,
     notes: typeof obj.notes === "string" ? obj.notes : undefined,
   };

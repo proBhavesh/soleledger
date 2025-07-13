@@ -11,8 +11,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { FileText, UploadIcon } from "lucide-react";
-import { getRecentDocuments } from "@/lib/actions/document-actions";
-import type { RecentDocument } from "@/lib/types/documents";
+import { getRecentDocuments, getReconciliationDialogData } from "@/lib/actions/document-actions";
+import { processReconciliationAction } from "@/lib/actions/reconciliation-dialog-actions";
+import type { RecentDocument, ProcessResult, ReconciliationDialogData } from "@/lib/types/documents";
 import { toast } from "sonner";
 
 // Import our new organized components
@@ -20,6 +21,7 @@ import { ReceiptsUpload } from "@/components/dashboard/receipts/receipts-upload"
 import { ReceiptsTable } from "@/components/dashboard/receipts/receipts-table";
 import { ReceiptsGrid } from "@/components/dashboard/receipts/receipts-grid";
 import { ReceiptsFilters } from "@/components/dashboard/receipts/receipts-filters";
+import { ReconciliationDialog, type ReconciliationAction } from "@/components/dashboard/receipts/reconciliation-dialog";
 
 export default function ReceiptsPage() {
   const [documents, setDocuments] = useState<RecentDocument[]>([]);
@@ -28,6 +30,11 @@ export default function ReceiptsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [showUpload, setShowUpload] = useState(false);
   const uploadRef = useRef<HTMLDivElement>(null);
+  
+  // Reconciliation dialog state
+  const [reconciliationDialogOpen, setReconciliationDialogOpen] = useState(false);
+  const [reconciliationData, setReconciliationData] = useState<ReconciliationDialogData | null>(null);
+  const [isProcessingReconciliation, setIsProcessingReconciliation] = useState(false);
 
   const fetchDocuments = async () => {
     try {
@@ -51,10 +58,21 @@ export default function ReceiptsPage() {
     fetchDocuments();
   }, []);
 
-  const handleUploadComplete = () => {
+  const handleUploadComplete = async (result: ProcessResult["data"]) => {
     // Refresh the documents list
     fetchDocuments();
-    toast.success("Document uploaded and processed successfully!");
+    
+    if (result) {
+      // Fetch reconciliation dialog data
+      const dialogResult = await getReconciliationDialogData(result.document.id);
+      
+      if (dialogResult.success && dialogResult.data) {
+        setReconciliationData(dialogResult.data);
+        setReconciliationDialogOpen(true);
+      } else {
+        toast.success("Document uploaded and processed successfully!");
+      }
+    }
   };
 
   const handleUploadClick = () => {
@@ -63,6 +81,49 @@ export default function ReceiptsPage() {
     setTimeout(() => {
       uploadRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 100);
+  };
+
+  const handleReconciliationAction = async (action: ReconciliationAction) => {
+    if (!reconciliationData) return;
+    
+    setIsProcessingReconciliation(true);
+    
+    try {
+      const result = await processReconciliationAction({
+        documentId: reconciliationData.document.id,
+        action,
+      });
+      
+      if (result.success) {
+        setReconciliationDialogOpen(false);
+        
+        // Show appropriate success message based on action type
+        switch (action.type) {
+          case "match":
+            toast.success("Receipt matched to transaction successfully!");
+            break;
+          case "split":
+            toast.success(`Created ${result.data?.transactionCount || 0} transactions from receipt`);
+            break;
+          case "create":
+            toast.success("Created new transaction from receipt");
+            break;
+          case "skip":
+            toast.info("Receipt reconciliation skipped");
+            break;
+        }
+        
+        // Refresh documents list
+        fetchDocuments();
+      } else {
+        toast.error(result.error || "Failed to complete reconciliation");
+      }
+    } catch (error) {
+      console.error("Reconciliation error:", error);
+      toast.error("Failed to complete reconciliation");
+    } finally {
+      setIsProcessingReconciliation(false);
+    }
   };
 
   // Filter documents based on search and status
@@ -298,6 +359,15 @@ export default function ReceiptsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Reconciliation Dialog */}
+      <ReconciliationDialog
+        open={reconciliationDialogOpen}
+        onOpenChange={setReconciliationDialogOpen}
+        data={reconciliationData}
+        onConfirm={handleReconciliationAction}
+        isLoading={isProcessingReconciliation}
+      />
     </div>
   );
 }

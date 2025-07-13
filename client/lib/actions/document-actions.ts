@@ -22,6 +22,7 @@ import type {
   ProcessDocumentRequest,
   ProcessResult,
   RecentDocumentsResult,
+  ReconciliationDialogData,
 } from "@/lib/types/documents";
 import {
   toDocumentType,
@@ -219,15 +220,7 @@ export async function processDocument(
       // Increment document upload count after successful processing
       await incrementDocumentUploadCount(business.id);
 
-      // If we have a high-confidence match, auto-link the document
-      if (matches.length > 0 && matches[0].confidence > 0.9) {
-        await db.document.update({
-          where: { id: document.id },
-          data: {
-            transactionId: matches[0].transactionId,
-          },
-        });
-      }
+      // Don't auto-link anymore - user will decide through reconciliation dialog
 
       // Map Prisma types to our interfaces
       const processedDocument = {
@@ -384,5 +377,112 @@ export async function getRecentDocuments(): Promise<RecentDocumentsResult> {
       success: false,
       error: "Internal server error",
     };
+  }
+}
+
+/**
+ * Get reconciliation dialog data for a document
+ */
+export async function getReconciliationDialogData(
+  documentId: string
+): Promise<{ success: boolean; data?: ReconciliationDialogData; error?: string }> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    const business = await db.business.findFirst({
+      where: buildUserBusinessWhere(session.user.id),
+    });
+
+    if (!business) {
+      return { success: false, error: "No business found" };
+    }
+
+    // Get the document with its extracted data
+    const document = await db.document.findFirst({
+      where: {
+        id: documentId,
+        businessId: business.id,
+      },
+      include: {
+        matches: {
+          include: {
+            transaction: {
+              include: {
+                category: true,
+              },
+            },
+          },
+          orderBy: {
+            confidence: "desc",
+          },
+          take: 5, // Top 5 matches
+        },
+      },
+    });
+
+    if (!document) {
+      return { success: false, error: "Document not found" };
+    }
+
+    const extractedData = validateExtractedData(document.extractedData);
+    if (!extractedData) {
+      return { success: false, error: "No extracted data found" };
+    }
+
+    // Map matches to dialog format
+    const suggestedMatches = document.matches.map((match) => ({
+      transaction: {
+        id: match.transaction.id,
+        date: match.transaction.date,
+        amount: match.transaction.amount,
+        description: match.transaction.description || "",
+        categoryName: match.transaction.category?.name,
+      },
+      confidence: match.confidence,
+      matchReason: match.matchReason || "",
+    }));
+
+    // Map suggested splits if available
+    const suggestedSplits = extractedData.suggestedSplits?.map((split) => ({
+      description: split.description,
+      amount: split.amount,
+      category: split.category,
+      taxAmount: split.taxAmount,
+      items: split.itemIndices
+        .map((idx) => extractedData.items?.[idx]?.description)
+        .filter(Boolean) as string[],
+    }));
+
+    return {
+      success: true,
+      data: {
+        document: {
+          id: document.id,
+          name: document.name,
+          type: document.type,
+          url: document.url,
+          size: document.size,
+          mimeType: document.mimeType,
+          processingStatus: document.processingStatus,
+          extractedData,
+          extractedAmount: document.extractedAmount,
+          extractedDate: document.extractedDate,
+          extractedVendor: document.extractedVendor,
+          extractedTax: document.extractedTax,
+          extractedCurrency: document.extractedCurrency,
+          matches: [],
+          createdAt: document.createdAt,
+        },
+        extractedData,
+        suggestedMatches,
+        suggestedSplits,
+      },
+    };
+  } catch (error) {
+    console.error("Error getting reconciliation dialog data:", error);
+    return { success: false, error: "Failed to get reconciliation data" };
   }
 }

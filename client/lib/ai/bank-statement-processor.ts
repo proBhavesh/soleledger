@@ -218,8 +218,8 @@ export async function processBankStatementWithAI(
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-3-5-sonnet-20241022",
-        max_tokens: 4096,
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 32000,
         messages: [
           {
             role: "user",
