@@ -1,7 +1,16 @@
+import type { AccountType, AccountCodeRange, AccountRangeKey } from "@/lib/types/chart-of-accounts";
+
 /**
- * Chart of Accounts based on client requirements from CSV
+ * Chart of Accounts based on accountant's specifications.
+ * Follows standard accounting hierarchy with proper financial statement groupings.
+ * These accounts are created automatically when a new business is set up.
  */
-export const CHART_OF_ACCOUNTS = [
+export const CHART_OF_ACCOUNTS: readonly {
+  code: string;
+  name: string;
+  type: AccountType;
+  description: string;
+}[] = [
   // Assets
   { code: "1000", name: "Cash", type: "ASSET", description: "Funds held in checking or savings accounts." },
   { code: "1010", name: "Petty Cash", type: "ASSET", description: "Small cash on hand for minor expenses." },
@@ -32,8 +41,10 @@ export const CHART_OF_ACCOUNTS = [
   { code: "4000", name: "Sales Revenue", type: "INCOME", description: "Income from sale of products or services." },
   { code: "4100", name: "Other Revenue", type: "INCOME", description: "Non-operating income (e.g., interest income)." },
   
-  // Expenses
+  // Cost of Sales
   { code: "5000", name: "Cost of Goods Sold (COGS)", type: "EXPENSE", description: "Direct costs of producing goods or services sold." },
+  
+  // Operating Expenses
   { code: "6000", name: "Salaries and Wages", type: "EXPENSE", description: "Employee compensation expenses." },
   { code: "6100", name: "Rent Expense", type: "EXPENSE", description: "Cost of office/store/warehouse rental." },
   { code: "6200", name: "Utilities Expense", type: "EXPENSE", description: "Electricity, water, gas, internet, etc." },
@@ -44,5 +55,104 @@ export const CHART_OF_ACCOUNTS = [
   { code: "6700", name: "Insurance Expense", type: "EXPENSE", description: "Premiums for business insurance policies." },
   { code: "6800", name: "Depreciation Expense", type: "EXPENSE", description: "Depreciation of fixed assets over time." },
   { code: "6900", name: "Miscellaneous Expense", type: "EXPENSE", description: "Any other expenses not categorized above." },
+  
+  // Tax Expense
   { code: "7000", name: "Tax Expense", type: "EXPENSE", description: "Tax expense" },
 ] as const;
+
+/**
+ * Account code constants for use throughout the application
+ * This ensures we have a single source of truth for account codes
+ */
+export const ACCOUNT_CODES = {
+  // Asset accounts
+  CASH: "1000",
+  PETTY_CASH: "1010",
+  ACCOUNTS_RECEIVABLE: "1100",
+  INVENTORY: "1200",
+  PREPAID_EXPENSES: "1300",
+  FIXED_ASSETS: "1400",
+  ACCUMULATED_DEPRECIATION: "1410",
+  OTHER_ASSETS: "1500",
+  
+  // Liability accounts
+  ACCOUNTS_PAYABLE: "2000",
+  CREDIT_CARDS_PAYABLE: "2100",
+  PAYROLL_LIABILITIES: "2200",
+  SALES_TAX_PAYABLE: "2300",
+  LOANS_PAYABLE: "2400",
+  OTHER_CURRENT_LIABILITIES: "2500",
+  LONG_TERM_LIABILITIES: "2600",
+  
+  // Equity accounts
+  OWNERS_EQUITY: "3000",
+  RETAINED_EARNINGS: "3100",
+  DRAWINGS_DISTRIBUTIONS: "3200",
+  COMMON_STOCK: "3300",
+  ADDITIONAL_PAID_IN_CAPITAL: "3400",
+  
+  // Income accounts
+  SALES_REVENUE: "4000",
+  OTHER_REVENUE: "4100",
+  
+  // Cost of Sales
+  COST_OF_GOODS_SOLD: "5000",
+  
+  // Operating Expenses
+  SALARIES_WAGES: "6000",
+  RENT_EXPENSE: "6100",
+  UTILITIES_EXPENSE: "6200",
+  OFFICE_SUPPLIES: "6300",
+  ADVERTISING_MARKETING: "6400",
+  TRAVEL_MEALS: "6500",
+  PROFESSIONAL_FEES: "6600",
+  INSURANCE_EXPENSE: "6700",
+  DEPRECIATION_EXPENSE: "6800",
+  MISCELLANEOUS_EXPENSE: "6900",
+  
+  // Tax
+  TAX_EXPENSE: "7000",
+} as const;
+
+/**
+ * Account ranges for validation.
+ * Used to determine which range an account code falls into.
+ */
+export const ACCOUNT_RANGES: Record<AccountRangeKey, AccountCodeRange> = {
+  ASSETS: { min: 1000, max: 1999 },
+  LIABILITIES: { min: 2000, max: 2999 },
+  EQUITY: { min: 3000, max: 3999 },
+  INCOME: { min: 4000, max: 4999 },
+  COST_OF_SALES: { min: 5000, max: 5999 },
+  OPERATING_EXPENSES: { min: 6000, max: 6999 },
+  TAX_EXPENSES: { min: 7000, max: 7999 },
+} as const;
+
+/**
+ * Helper to get account by code.
+ * 
+ * @param {string} code - The account code to search for
+ * @returns {typeof CHART_OF_ACCOUNTS[number] | undefined} The account if found, undefined otherwise
+ */
+export function getAccountByCode(code: string): typeof CHART_OF_ACCOUNTS[number] | undefined {
+  return CHART_OF_ACCOUNTS.find(account => account.code === code);
+}
+
+/**
+ * Helper to check if account code is in a specific range.
+ * 
+ * @param {string} code - The account code to check
+ * @param {AccountRangeKey} rangeKey - The range key to check against
+ * @returns {boolean} True if the code is within the specified range
+ */
+export function isAccountInRange(code: string, rangeKey: AccountRangeKey): boolean {
+  const numCode = parseInt(code, 10);
+  
+  // Return false if code is not a valid number
+  if (isNaN(numCode)) {
+    return false;
+  }
+  
+  const range = ACCOUNT_RANGES[rangeKey];
+  return numCode >= range.min && numCode <= range.max;
+}

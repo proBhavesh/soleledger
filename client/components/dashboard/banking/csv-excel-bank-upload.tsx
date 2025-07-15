@@ -5,11 +5,21 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { FileSpreadsheet, AlertCircle, CheckCircle, X } from "lucide-react";
 import { toast } from "sonner";
 import { parseSpreadsheet, formatTransactionData } from "@/lib/utils/csv-excel-parser";
 import { bulkImportBankTransactions, validateBulkImportData } from "@/lib/actions/bank-import-actions";
 import { ColumnMappingDialog, type ColumnMapping } from "../receipts/column-mapping-dialog";
+import { ErrorDialog } from "@/components/ui/error-dialog";
+import { ChartOfAccountsSetup } from "@/components/dashboard/chart-of-accounts/chart-of-accounts-setup";
+import { useBusinessContext } from "@/lib/contexts/business-context";
 import type { ParsedRow } from "@/lib/utils/csv-excel-parser";
 
 interface CsvExcelBankUploadProps {
@@ -25,6 +35,7 @@ export function CsvExcelBankUpload({
   onComplete, 
   onRemove 
 }: CsvExcelBankUploadProps) {
+  const { selectedBusiness } = useBusinessContext();
   const [status, setStatus] = useState<"parsing" | "mapping" | "importing" | "completed" | "error">("parsing");
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +46,13 @@ export function CsvExcelBankUpload({
     failed: number;
     errors?: Array<{ row: number; error: string }>;
   } | null>(null);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [errorDialogData, setErrorDialogData] = useState<{
+    title: string;
+    description: string;
+    errors?: Array<{ row: number; error: string }>;
+  } | null>(null);
+  const [showChartOfAccountsSetup, setShowChartOfAccountsSetup] = useState(false);
 
   // Parse file on mount
   useEffect(() => {
@@ -104,13 +122,51 @@ export function CsvExcelBankUpload({
           failed: result.failedCount,
           errors: result.errors,
         });
-        setError(`Import completed with errors: ${result.successCount} succeeded, ${result.failedCount} failed`);
+        
+        // Check if the error is about Chart of Accounts not being set up
+        const chartOfAccountsError = result.errors?.find(err => 
+          err.error.includes("Chart of Accounts not set up")
+        );
+        
+        if (chartOfAccountsError) {
+          // Show Chart of Accounts setup dialog
+          setShowChartOfAccountsSetup(true);
+        } else {
+          // Show error dialog for other import failures
+          const errorTitle = result.successCount === 0 
+            ? "Import Failed" 
+            : "Import Completed with Errors";
+          
+          const errorDescription = result.successCount === 0
+            ? `All ${result.failedCount} transactions failed to import.`
+            : `${result.successCount} transactions imported successfully, but ${result.failedCount} failed.`;
+          
+          setErrorDialogData({
+            title: errorTitle,
+            description: errorDescription,
+            errors: result.errors,
+          });
+          setShowErrorDialog(true);
+        }
+        
+        // Only call onComplete if some transactions were successful
+        if (result.successCount > 0) {
+          onComplete?.();
+        }
       }
       setProgress(100);
     } catch (err) {
       setStatus("error");
-      setError(err instanceof Error ? err.message : "Import failed");
+      const errorMessage = err instanceof Error ? err.message : "Import failed";
+      setError(errorMessage);
       console.error("Import error:", err);
+      
+      // Show error dialog for exceptions
+      setErrorDialogData({
+        title: "Import Error",
+        description: errorMessage,
+      });
+      setShowErrorDialog(true);
     }
   }, [parsedData, bankAccountId, onComplete]);
 
@@ -204,6 +260,45 @@ export function CsvExcelBankUpload({
           onConfirm={handleColumnMapping}
           isLoading={status === "importing"}
         />
+      )}
+      
+      {errorDialogData && (
+        <ErrorDialog
+          open={showErrorDialog}
+          onOpenChange={setShowErrorDialog}
+          title={errorDialogData.title}
+          description={errorDialogData.description}
+          errors={errorDialogData.errors}
+        />
+      )}
+      
+      {showChartOfAccountsSetup && (
+        <Dialog open={showChartOfAccountsSetup} onOpenChange={setShowChartOfAccountsSetup}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Chart of Accounts Required</DialogTitle>
+              <DialogDescription>
+                Your business needs a Chart of Accounts to import transactions.
+              </DialogDescription>
+            </DialogHeader>
+            {selectedBusiness ? (
+              <ChartOfAccountsSetup
+                businessId={selectedBusiness.id}
+                showAsCard={false}
+                onComplete={() => {
+                  setShowChartOfAccountsSetup(false);
+                  // Reset status to allow retry
+                  setStatus("parsing");
+                  setError(null);
+                }}
+              />
+            ) : (
+              <div className="text-center py-4 text-muted-foreground">
+                Please select a business first.
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       )}
     </>
   );

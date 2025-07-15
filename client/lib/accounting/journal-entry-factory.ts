@@ -17,7 +17,7 @@ export class JournalEntryFactory {
     }
     
     // Ensure at least one income account exists
-    if (!accounts.salesRevenueId && !accounts.serviceRevenueId && !accounts.otherIncomeId) {
+    if (!accounts.salesRevenueId && !accounts.otherIncomeId) {
       throw new Error("At least one income account is required");
     }
     
@@ -177,7 +177,12 @@ export class JournalEntryFactory {
     const entries: JournalEntryInput[] = [];
     
     // Debit: Expense
-    const expenseAccountId = transaction.categoryId || this.accounts.miscExpenseId!;
+    const expenseAccountId = transaction.categoryId || this.accounts.miscExpenseId;
+    
+    if (!expenseAccountId) {
+      throw new Error(`No expense account found for transaction: ${transaction.description}`);
+    }
+    
     entries.push({
       accountId: expenseAccountId,
       debitAmount: transaction.amount,

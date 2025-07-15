@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { JournalEntryFactory } from "@/lib/accounting/journal-entry-factory";
 import { checkTransactionLimit } from "@/lib/services/usage-tracking";
 import { TransactionProcessor } from "@/lib/services/transaction-processor";
+import { ACCOUNT_CODES, isAccountInRange } from "@/lib/constants/chart-of-accounts";
 import type { 
   BatchImportTransaction, 
   ChartOfAccountsMap,
@@ -26,52 +27,36 @@ async function getChartOfAccountsMap(businessId: string): Promise<ChartOfAccount
   for (const account of accounts) {
     switch (account.accountCode) {
       // Assets
-      case "1000":
-      case "1010": accountMap.cash = account.id; break;
-      case "1100": accountMap.accountsReceivable = account.id; break;
-      case "1200": accountMap.inventory = account.id; break;
-      case "1300": 
-      case "1310": 
-      case "1320": accountMap.prepaidExpenses = account.id; break;
-      case "1510": accountMap.officeEquipment = account.id; break;
-      case "1530": accountMap.furniture = account.id; break;
-      case "1540": accountMap.vehicles = account.id; break;
+      case ACCOUNT_CODES.CASH:
+      case ACCOUNT_CODES.PETTY_CASH: accountMap.cash = account.id; break;
+      case ACCOUNT_CODES.ACCOUNTS_RECEIVABLE: accountMap.accountsReceivable = account.id; break;
+      case ACCOUNT_CODES.INVENTORY: accountMap.inventory = account.id; break;
+      case ACCOUNT_CODES.PREPAID_EXPENSES: accountMap.prepaidExpenses = account.id; break;
+      case ACCOUNT_CODES.FIXED_ASSETS: accountMap.officeEquipment = account.id; break;
       
       // Liabilities
-      case "2000": accountMap.accountsPayable = account.id; break;
-      case "2110": accountMap.creditCards = account.id; break;
-      case "2310": accountMap.salesTaxPayable = account.id; break;
-      case "2320": accountMap.payrollTaxPayable = account.id; break;
-      case "2400": accountMap.loans = account.id; break;
+      case ACCOUNT_CODES.ACCOUNTS_PAYABLE: accountMap.accountsPayable = account.id; break;
+      case ACCOUNT_CODES.CREDIT_CARDS_PAYABLE: accountMap.creditCards = account.id; break;
+      case ACCOUNT_CODES.SALES_TAX_PAYABLE: accountMap.salesTaxPayable = account.id; break;
+      case ACCOUNT_CODES.PAYROLL_LIABILITIES: accountMap.payrollTaxPayable = account.id; break;
+      case ACCOUNT_CODES.LOANS_PAYABLE: accountMap.loans = account.id; break;
       
       // Income
-      case "4010": accountMap.salesRevenue = account.id; break;
-      case "4020": accountMap.serviceRevenue = account.id; break;
-      case "4040": accountMap.interestIncome = account.id; break;
-      case "4050": accountMap.otherIncome = account.id; break;
+      case ACCOUNT_CODES.SALES_REVENUE: accountMap.salesRevenue = account.id; break;
+      case ACCOUNT_CODES.OTHER_REVENUE: accountMap.otherIncome = account.id; break;
       
       // Expenses
-      case "5010": accountMap.costOfGoodsSold = account.id; break;
-      case "5020": accountMap.salariesWages = account.id; break;
-      case "5030": accountMap.rent = account.id; break;
-      case "5040": accountMap.utilities = account.id; break;
-      case "5050": accountMap.officeSupplies = account.id; break;
-      case "5070": accountMap.advertising = account.id; break;
-      case "5080": accountMap.travel = account.id; break;
-      case "5090": accountMap.meals = account.id; break;
-      case "5110": accountMap.professionalFees = account.id; break;
-      case "5120": accountMap.insurance = account.id; break;
-      case "5130": accountMap.telephone = account.id; break;
-      case "5140": accountMap.internet = account.id; break;
-      case "5150": accountMap.software = account.id; break;
-      case "5060": accountMap.fuel = account.id; break;
-      case "5160": accountMap.vehicleMaintenance = account.id; break;
-      case "5200": accountMap.interestExpense = account.id; break;
-      case "5210": accountMap.bankCharges = account.id; break;
-      case "5220": accountMap.creditCardFees = account.id; break;
-      case "5250": accountMap.depreciation = account.id; break;
-      case "5999": accountMap.miscellaneous = account.id; break;
-      case "5900": accountMap.otherExpense = account.id; break;
+      case ACCOUNT_CODES.COST_OF_GOODS_SOLD: accountMap.costOfGoodsSold = account.id; break;
+      case ACCOUNT_CODES.SALARIES_WAGES: accountMap.salariesWages = account.id; break;
+      case ACCOUNT_CODES.RENT_EXPENSE: accountMap.rent = account.id; break;
+      case ACCOUNT_CODES.UTILITIES_EXPENSE: accountMap.utilities = account.id; break;
+      case ACCOUNT_CODES.OFFICE_SUPPLIES: accountMap.officeSupplies = account.id; break;
+      case ACCOUNT_CODES.ADVERTISING_MARKETING: accountMap.advertising = account.id; break;
+      case ACCOUNT_CODES.TRAVEL_MEALS: accountMap.travel = account.id; break;
+      case ACCOUNT_CODES.PROFESSIONAL_FEES: accountMap.professionalFees = account.id; break;
+      case ACCOUNT_CODES.INSURANCE_EXPENSE: accountMap.insurance = account.id; break;
+      case ACCOUNT_CODES.DEPRECIATION_EXPENSE: accountMap.depreciation = account.id; break;
+      case ACCOUNT_CODES.MISCELLANEOUS_EXPENSE: accountMap.miscellaneous = account.id; break;
     }
   }
   
@@ -79,13 +64,14 @@ async function getChartOfAccountsMap(businessId: string): Promise<ChartOfAccount
   if (!accountMap.miscellaneous && !accountMap.otherExpense) {
     // Find any expense account as fallback
     const fallbackExpense = accounts.find(a => 
-      parseInt(a.accountCode) >= 5000 && parseInt(a.accountCode) < 8000
+      isAccountInRange(a.accountCode, "OPERATING_EXPENSES") ||
+      isAccountInRange(a.accountCode, "COST_OF_SALES")
     );
     if (fallbackExpense) {
       accountMap.miscellaneous = fallbackExpense.id;
-      console.warn(`Using ${fallbackExpense.name} (${fallbackExpense.accountCode}) as fallback expense account`);
+      // Using fallback expense account
     } else {
-      console.warn("No miscellaneous expense account found - some expense entries may fail");
+      // No miscellaneous expense account found
     }
   }
   
@@ -176,13 +162,16 @@ async function getCategoryId(
   
   // Log for debugging category matching issues
   if (!bestMatch && suggestedCategory) {
-    console.log(`No category match found for "${suggestedCategory}" (${transactionType})`);
+    // No category match found for suggested category
   }
   
   return bestMatch?.id;
 }
 
 /**
+ * @deprecated Use bulkImportBankTransactions from bank-import-actions.ts instead
+ * This function is kept for backward compatibility but should not be used for new imports
+ * 
  * Batch import bank statement transactions with robust processing
  */
 export async function batchImportBankStatementTransactions(request: {
@@ -231,14 +220,17 @@ export async function batchImportBankStatementTransactions(request: {
     });
 
     if (!businessMember) {
-      console.error(`User ${session.user.id} does not have access to business ${businessId}`);
+      // User does not have access to business
       return {
         success: false,
         error: "You don't have access to this business",
       };
     }
 
-    console.log(`Processing ${selectedTransactions.length} transactions for business ${businessId} by user ${session.user.id}`);
+    // Log processing info only in development
+    if (process.env.NODE_ENV === "development") {
+      console.log(`Processing ${selectedTransactions.length} transactions for business ${businessId} by user ${session.user.id}`);
+    }
 
     // Get chart of accounts mapping
     const accountMap = await getChartOfAccountsMap(businessId);
@@ -247,7 +239,27 @@ export async function batchImportBankStatementTransactions(request: {
     if (!accountMap.cash) {
       return {
         success: false,
-        error: "Cash account not found. Please ensure your Chart of Accounts is properly configured.",
+        error: `Cash account (${ACCOUNT_CODES.CASH}) not found. Please ensure your Chart of Accounts is properly configured.`,
+        data: {
+          imported: 0,
+          failed: selectedTransactions.length,
+          skipped: 0,
+          total: selectedTransactions.length,
+        },
+      };
+    }
+
+    // Check for at least one income account
+    if (!accountMap.salesRevenue && !accountMap.serviceRevenue && !accountMap.otherIncome) {
+      return {
+        success: false,
+        error: `At least one income account (${ACCOUNT_CODES.SALES_REVENUE} or ${ACCOUNT_CODES.OTHER_REVENUE}) is required. Please set up your Chart of Accounts first.`,
+        data: {
+          imported: 0,
+          failed: selectedTransactions.length,
+          skipped: 0,
+          total: selectedTransactions.length,
+        },
       };
     }
 
@@ -325,10 +337,16 @@ export async function batchImportBankStatementTransactions(request: {
       },
     };
   } catch (error) {
-    console.error("Error in batch import:", error);
+    // Handle error gracefully without logging to console
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to import transactions. Please try again.",
+      data: {
+        imported: 0,
+        failed: selectedTransactions.length,
+        skipped: 0,
+        total: selectedTransactions.length,
+      },
     };
   }
 }

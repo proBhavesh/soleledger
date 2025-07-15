@@ -43,6 +43,7 @@ import {
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { importBankStatementTransactions } from "@/lib/actions/bank-statement-actions";
+import { ErrorDialog } from "@/components/ui/error-dialog";
 import type { BankStatementData } from "@/lib/ai/bank-statement-processor";
 import type { DuplicateCheckResult, ImportBankStatementResponse } from "@/lib/types/bank-imports";
 
@@ -73,6 +74,8 @@ export function BankStatementReview({
   const [isImporting, setIsImporting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const duplicateCount = duplicateChecks.filter(check => check.isDuplicate).length;
   const selectedCount = selectedTransactions.size;
@@ -149,11 +152,14 @@ export function BankStatementReview({
           onSuccess();
         }, 500);
       } else {
-        toast.error(result.error || "Failed to import transactions");
+        // Show error dialog for import failures
+        setErrorMessage(result.error || "Failed to import transactions. Please check your Chart of Accounts setup.");
+        setShowErrorDialog(true);
       }
     } catch (error) {
       console.error("Error importing transactions:", error);
-      toast.error("Failed to import transactions");
+      setErrorMessage(error instanceof Error ? error.message : "Failed to import transactions");
+      setShowErrorDialog(true);
     } finally {
       setIsImporting(false);
       setImportProgress(0);
@@ -419,6 +425,14 @@ export function BankStatementReview({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Error Dialog */}
+      <ErrorDialog
+        open={showErrorDialog}
+        onOpenChange={setShowErrorDialog}
+        title="Import Failed"
+        description={errorMessage}
+      />
     </>
   );
 }

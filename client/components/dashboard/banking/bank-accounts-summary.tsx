@@ -52,7 +52,7 @@ export function BankAccountsSummary({
 
   // Use external accounts data if provided
   useEffect(() => {
-    if (externalAccounts?.length) {
+    if (externalAccounts !== undefined) {
       setAccounts(externalAccounts);
       setIsLoading(false);
     }

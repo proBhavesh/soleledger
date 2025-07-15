@@ -6,6 +6,8 @@ import { getCurrentBusinessId } from "./business-context-actions";
 import { checkTransactionLimit } from "@/lib/services/usage-tracking";
 import { TransactionProcessor } from "@/lib/services/transaction-processor";
 import type { JournalEntryAccountIds } from "@/lib/types/bank-imports";
+import { ACCOUNT_CODES, ACCOUNT_RANGES, isAccountInRange } from "@/lib/constants/chart-of-accounts";
+import { hasChartOfAccounts } from "./chart-of-accounts-actions";
 
 export interface BankTransactionData {
   date: string;
@@ -36,6 +38,8 @@ export interface BulkImportResult {
 export async function bulkImportBankTransactions(
   request: BulkImportBankTransactionsRequest
 ): Promise<BulkImportResult> {
+  let importDocument: { id: string } | null = null;
+  
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -56,6 +60,18 @@ export async function bulkImportBankTransactions(
         successCount: 0,
         failedCount: request.transactions.length,
         errors: [{ row: 0, error: "No business selected" }],
+      };
+    }
+    
+    // Check if business has Chart of Accounts set up
+    const hasAccounts = await hasChartOfAccounts(businessId);
+    if (!hasAccounts) {
+      return {
+        success: false,
+        totalCount: request.transactions.length,
+        successCount: 0,
+        failedCount: request.transactions.length,
+        errors: [{ row: 0, error: "Chart of Accounts not set up. Please set up your Chart of Accounts first." }],
       };
     }
 
@@ -108,48 +124,56 @@ export async function bulkImportBankTransactions(
     const journalAccountIds: Partial<JournalEntryAccountIds> = {};
     
     accounts.forEach(account => {
-      // Map common expense accounts
-      if (account.accountCode === "5020") {
+      // Map expense accounts following accountant's structure
+      if (account.accountCode === ACCOUNT_CODES.MISCELLANEOUS_EXPENSE) {
         accountMap.miscellaneous = account.id;
         journalAccountIds.miscExpenseId = account.id;
       }
-      if (account.accountCode === "5000") {
+      if (account.accountCode === ACCOUNT_CODES.COST_OF_GOODS_SOLD) {
         accountMap.costOfGoodsSold = account.id;
         journalAccountIds.costOfGoodsSoldId = account.id;
       }
-      if (account.accountCode === "5010") {
+      if (account.accountCode === ACCOUNT_CODES.SALARIES_WAGES) {
         accountMap.salariesWages = account.id;
         journalAccountIds.salariesWagesId = account.id;
       }
-      if (account.accountCode === "5030") {
+      if (account.accountCode === ACCOUNT_CODES.RENT_EXPENSE) {
         accountMap.rent = account.id;
         journalAccountIds.rentExpenseId = account.id;
       }
-      if (account.accountCode === "5040") {
+      if (account.accountCode === ACCOUNT_CODES.UTILITIES_EXPENSE) {
         accountMap.utilities = account.id;
         journalAccountIds.utilitiesExpenseId = account.id;
       }
       // Map income accounts
-      if (account.accountCode === "4000") {
+      if (account.accountCode === ACCOUNT_CODES.SALES_REVENUE) {
         accountMap.salesRevenue = account.id;
         journalAccountIds.salesRevenueId = account.id;
       }
-      if (account.accountCode === "4010") {
-        accountMap.serviceRevenue = account.id;
-        journalAccountIds.serviceRevenueId = account.id;
-      }
-      if (account.accountCode === "4030") {
+      if (account.accountCode === ACCOUNT_CODES.OTHER_REVENUE) {
         accountMap.otherIncome = account.id;
         journalAccountIds.otherIncomeId = account.id;
       }
       // Map asset accounts
-      if (account.accountCode === "1000") {
+      if (account.accountCode === ACCOUNT_CODES.CASH) {
         journalAccountIds.cashAccountId = account.id;
       }
     });
+    
+    // If no miscellaneous expense account, use any expense account as fallback
+    if (!journalAccountIds.miscExpenseId) {
+      const anyExpenseAccount = accounts.find(a => 
+        a.accountType === "EXPENSE" && 
+        isAccountInRange(a.accountCode, "OPERATING_EXPENSES")
+      );
+      if (anyExpenseAccount) {
+        accountMap.miscellaneous = anyExpenseAccount.id;
+        journalAccountIds.miscExpenseId = anyExpenseAccount.id;
+      }
+    }
 
     // Create a dummy document for tracking
-    const importDocument = await db.document.create({
+    importDocument = await db.document.create({
       data: {
         businessId,
         userId: session.user.id,
@@ -163,6 +187,76 @@ export async function bulkImportBankTransactions(
         processingStatus: "PROCESSING",
       },
     });
+
+    // Check if we have minimum required accounts
+    if (!journalAccountIds.cashAccountId) {
+      // Update document status to failed
+      await db.document.update({
+        where: { id: importDocument.id },
+        data: {
+          processingStatus: "FAILED",
+          processingError: "Cash account (1000) is required but not found in Chart of Accounts",
+        },
+      });
+      
+      return {
+        success: false,
+        totalCount: request.transactions.length,
+        successCount: 0,
+        failedCount: request.transactions.length,
+        errors: [{
+          row: 0,
+          error: `Cash account (${ACCOUNT_CODES.CASH}) is required but not found in Chart of Accounts. Please set up your Chart of Accounts first.`,
+        }],
+      };
+    }
+
+    if (!journalAccountIds.salesRevenueId && !journalAccountIds.otherIncomeId) {
+      // Update document status to failed
+      await db.document.update({
+        where: { id: importDocument.id },
+        data: {
+          processingStatus: "FAILED",
+          processingError: "At least one income account is required",
+        },
+      });
+      
+      return {
+        success: false,
+        totalCount: request.transactions.length,
+        successCount: 0,
+        failedCount: request.transactions.length,
+        errors: [{
+          row: 0,
+          error: `At least one income account (${ACCOUNT_CODES.SALES_REVENUE} or ${ACCOUNT_CODES.OTHER_REVENUE}) is required but not found in Chart of Accounts. Please set up your Chart of Accounts first.`,
+        }],
+      };
+    }
+
+    // Check for at least one expense account
+    if (!journalAccountIds.miscExpenseId && !journalAccountIds.costOfGoodsSoldId && 
+        !journalAccountIds.salariesWagesId && !journalAccountIds.rentExpenseId && 
+        !journalAccountIds.utilitiesExpenseId) {
+      // Update document status to failed
+      await db.document.update({
+        where: { id: importDocument.id },
+        data: {
+          processingStatus: "FAILED",
+          processingError: "At least one expense account is required",
+        },
+      });
+      
+      return {
+        success: false,
+        totalCount: request.transactions.length,
+        successCount: 0,
+        failedCount: request.transactions.length,
+        errors: [{
+          row: 0,
+          error: `At least one expense account (${ACCOUNT_CODES.COST_OF_GOODS_SOLD} or ${ACCOUNT_RANGES.OPERATING_EXPENSES.min}-${ACCOUNT_RANGES.OPERATING_EXPENSES.max}) is required but not found in Chart of Accounts. Please set up your Chart of Accounts first.`,
+        }],
+      };
+    }
 
     // Import journal entry factory
     const { JournalEntryFactory } = await import("@/lib/accounting/journal-entry-factory");
@@ -181,18 +275,83 @@ export async function bulkImportBankTransactions(
     let successCount = 0;
     let failedCount = 0;
 
+    // Map common category names to account codes
+    const categoryToAccountMap: Record<string, string | undefined> = {
+      // Bank and financial
+      "bank charges": accountMap.miscellaneous,
+      "bank service fee": accountMap.miscellaneous,
+      "nsf fee": accountMap.miscellaneous,
+      "credit card fees": accountMap.miscellaneous,
+      "interest expense": accountMap.miscellaneous,
+      
+      // Software and subscriptions
+      "software": accountMap.miscellaneous,
+      "software subscription": accountMap.miscellaneous,
+      "zoom subscription": accountMap.miscellaneous,
+      
+      // Income
+      "income": accountMap.otherIncome || accountMap.salesRevenue,
+      "sales": accountMap.salesRevenue || accountMap.otherIncome,
+      "service revenue": accountMap.serviceRevenue || accountMap.otherIncome,
+      "transfer": accountMap.otherIncome || accountMap.salesRevenue,
+      
+      // Payroll
+      "salary": accountMap.salariesWages || accountMap.miscellaneous,
+      "payroll": accountMap.salariesWages || accountMap.miscellaneous,
+      "salaries & wages": accountMap.salariesWages || accountMap.miscellaneous,
+      "employee benefits": accountMap.miscellaneous,
+      
+      // Operating expenses
+      "rent": accountMap.rent || accountMap.miscellaneous,
+      "utilities": accountMap.utilities || accountMap.miscellaneous,
+      "office supplies": accountMap.miscellaneous,
+      "meals & entertainment": accountMap.miscellaneous,
+      "travel": accountMap.miscellaneous,
+      "advertising": accountMap.miscellaneous,
+      "insurance": accountMap.miscellaneous,
+      "professional fees": accountMap.miscellaneous,
+      "taxes": accountMap.miscellaneous,
+      "telephone": accountMap.miscellaneous,
+      "internet": accountMap.miscellaneous,
+      "fuel": accountMap.miscellaneous,
+      "shipping": accountMap.miscellaneous,
+      "repairs & maintenance": accountMap.miscellaneous,
+      "cost of goods sold": accountMap.costOfGoodsSold || accountMap.miscellaneous,
+      "equipment rental": accountMap.miscellaneous,
+      "loan payments": accountMap.miscellaneous,
+    };
+
     // Convert transactions to the format expected by the processor
-    const transactionsToProcess = request.transactions.map((txn, index) => ({
-      date: new Date(txn.date),
-      description: txn.description,
-      amount: txn.amount,
-      type: txn.amount >= 0 ? "INCOME" as const : "EXPENSE" as const,
-      bankAccountId: request.bankAccountId,
-      reference: txn.reference,
-      businessId,
-      categoryId: txn.category ? accountMap[txn.category.toLowerCase()] : undefined,
-      rowIndex: index + 2, // +2 for header row and 1-based indexing
-    }));
+    const transactionsToProcess = request.transactions.map((txn, index) => {
+      // Try to map the category from CSV to a proper account
+      let categoryId: string | undefined = undefined;
+      if (txn.category) {
+        const lowerCategory = txn.category.toLowerCase();
+        categoryId = categoryToAccountMap[lowerCategory];
+        
+        // If no direct mapping, try to find partial matches
+        if (!categoryId) {
+          for (const [key, value] of Object.entries(categoryToAccountMap)) {
+            if (lowerCategory.includes(key) || key.includes(lowerCategory)) {
+              categoryId = value;
+              break;
+            }
+          }
+        }
+      }
+      
+      return {
+        date: new Date(txn.date),
+        description: txn.description,
+        amount: txn.amount,
+        type: txn.amount >= 0 ? "INCOME" as const : "EXPENSE" as const,
+        bankAccountId: request.bankAccountId,
+        reference: txn.reference,
+        businessId,
+        categoryId,
+        rowIndex: index + 2, // +2 for header row and 1-based indexing
+      };
+    });
 
     // Process in batches
     const result = await processor.processTransactions(
@@ -218,6 +377,21 @@ export async function bulkImportBankTransactions(
       });
     });
 
+    // Update document status based on results
+    await db.document.update({
+      where: { id: importDocument.id },
+      data: {
+        processingStatus: failedCount === 0 ? "COMPLETED" : (successCount === 0 ? "FAILED" : "COMPLETED"),
+        extractedData: {
+          importedAt: new Date().toISOString(),
+          importedTransactions: successCount,
+          failedTransactions: failedCount,
+          errors: errors.slice(0, 50),
+        },
+        processingError: failedCount > 0 ? `${failedCount} transactions failed to import` : null,
+      },
+    });
+
     return {
       success: failedCount === 0,
       totalCount: request.transactions.length,
@@ -228,6 +402,18 @@ export async function bulkImportBankTransactions(
     };
   } catch (error) {
     console.error("Bulk bank import error:", error);
+    
+    // Update document status to failed if it was created
+    if (importDocument?.id) {
+      await db.document.update({
+        where: { id: importDocument.id },
+        data: {
+          processingStatus: "FAILED",
+          processingError: error instanceof Error ? error.message : "Import failed",
+        },
+      }).catch(console.error);
+    }
+    
     return {
       success: false,
       totalCount: request.transactions.length,

@@ -15,6 +15,7 @@ import {
 } from "@/lib/plaid/category-mapper";
 import { checkTransactionLimit, incrementTransactionCount } from "@/lib/services/usage-tracking";
 import { revalidatePath } from "next/cache";
+import { ACCOUNT_CODES } from "@/lib/constants/chart-of-accounts";
 
 /**
  * Syncs transactions for a connected account with enriched data
@@ -135,7 +136,7 @@ export async function syncTransactionsEnhanced(
                 const defaultCategory = await db.category.findFirst({
                   where: {
                     businessId,
-                    accountCode: accountType === "INCOME" ? "4100" : "9030", // Other Income or Miscellaneous
+                    accountCode: accountType === "INCOME" ? ACCOUNT_CODES.OTHER_REVENUE : ACCOUNT_CODES.MISCELLANEOUS_EXPENSE, // Other Income or Miscellaneous
                     accountType: accountType,
                   },
                 });

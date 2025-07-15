@@ -17,6 +17,7 @@ import {
   type CashFlowItem,
   type CashFlowData,
 } from "@/lib/types/reports";
+import { ACCOUNT_CODES } from "@/lib/constants/chart-of-accounts";
 
 /**
  * Generate Profit & Loss Report with Reconciliation Status
@@ -683,7 +684,7 @@ export async function generateBalanceSheetReport(
         if (amount !== 0) {
           lineItemGroups.cashAndBank.accounts.push({
             name: `${bankAccount.name} (${bankAccount.institution || 'Bank Account'})`,
-            accountCode: "1000", // Map to Cash GL code
+            accountCode: ACCOUNT_CODES.CASH, // Map to Cash GL code
             amount: amount,
           });
           lineItemGroups.cashAndBank.total += amount;
@@ -781,7 +782,7 @@ export async function generateBalanceSheetReport(
       if (bankAccount.accountType === "CREDIT_CARD" && amount > 0) {
         liabilityLineItems.creditCardsPayable.accounts.push({
           name: `${bankAccount.name} (${bankAccount.institution || 'Credit Card'})`,
-          accountCode: "2100", // Credit cards payable
+          accountCode: ACCOUNT_CODES.CREDIT_CARDS_PAYABLE, // Credit cards payable
           amount: amount,
         });
         liabilityLineItems.creditCardsPayable.total += amount;
@@ -789,7 +790,7 @@ export async function generateBalanceSheetReport(
       } else if ((bankAccount.accountType === "LINE_OF_CREDIT" || bankAccount.accountType === "LOAN") && amount > 0) {
         liabilityLineItems.loans.accounts.push({
           name: `${bankAccount.name} (${bankAccount.institution || 'Loan'})`,
-          accountCode: "2400", // Loans payable
+          accountCode: ACCOUNT_CODES.LOANS_PAYABLE, // Loans payable
           amount: amount,
         });
         liabilityLineItems.loans.total += amount;
@@ -881,7 +882,7 @@ export async function generateBalanceSheetReport(
       const accountData = accountBalances.get(account.id);
       
       // Check if this is retained earnings account
-      if (account.accountCode === "3100" || account.name.toLowerCase().includes("retained earnings")) {
+      if (account.accountCode === ACCOUNT_CODES.RETAINED_EARNINGS || account.name.toLowerCase().includes("retained earnings")) {
         hasRetainedEarningsAccount = true;
       }
       
@@ -900,7 +901,7 @@ export async function generateBalanceSheetReport(
     if (!hasRetainedEarningsAccount) {
       equityLineItems.equity.accounts.push({
         name: "Retained Earnings",
-        accountCode: "3100",
+        accountCode: ACCOUNT_CODES.RETAINED_EARNINGS,
         amount: 0,
       });
     }
@@ -908,7 +909,7 @@ export async function generateBalanceSheetReport(
     // Add current year earnings as a separate account
     equityLineItems.equity.accounts.push({
       name: "Current Year Earnings",
-      accountCode: "3200",
+      accountCode: ACCOUNT_CODES.DRAWINGS_DISTRIBUTIONS,
       amount: netIncome,
     });
     equityLineItems.equity.total += netIncome;

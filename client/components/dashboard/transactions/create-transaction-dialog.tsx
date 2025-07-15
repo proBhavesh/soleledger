@@ -39,6 +39,7 @@ import {
 } from "@/lib/actions/transaction-journal-actions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { JournalEntryLine, CategoryOption } from "@/lib/types/journal-entries";
+import { ACCOUNT_CODES } from "@/lib/constants/chart-of-accounts";
 
 interface CreateTransactionDialogProps {
   open: boolean;
@@ -74,7 +75,7 @@ export function CreateTransactionDialog({
 
   // Get default cash account
   useEffect(() => {
-    const cashAccount = categories.find(c => c.accountCode === "1000" || c.name.toLowerCase().includes("cash"));
+    const cashAccount = categories.find(c => c.accountCode === ACCOUNT_CODES.CASH || c.name.toLowerCase().includes("cash"));
     if (cashAccount) {
       setSelectedCashAccount(cashAccount.id);
     }

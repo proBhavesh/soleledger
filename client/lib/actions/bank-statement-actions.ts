@@ -13,9 +13,10 @@ import {
   type BankStatementTransaction,
 } from "@/lib/ai/bank-statement-processor";
 import { getCurrentBusinessId } from "./business-context-actions";
-import { batchImportBankStatementTransactions } from "./bank-statement-batch-actions";
+import { bulkImportBankTransactions } from "./bank-import-actions";
 import { subDays, addDays } from "date-fns";
 import { checkDocumentUploadLimit, incrementDocumentUploadCount } from "@/lib/services/usage-tracking";
+import { hasChartOfAccounts } from "./chart-of-accounts-actions";
 
 // Validation schemas
 const uploadRequestSchema = z.object({
@@ -67,6 +68,15 @@ export async function generateBankStatementUploadUrl(request: {
     const businessId = await getCurrentBusinessId();
     if (!businessId) {
       return { success: false, error: "No business found" };
+    }
+    
+    // Check if business has Chart of Accounts set up
+    const hasAccounts = await hasChartOfAccounts(businessId);
+    if (!hasAccounts) {
+      return { 
+        success: false, 
+        error: "Chart of Accounts not set up. Please set up your Chart of Accounts first." 
+      };
     }
 
     const validatedData = uploadRequestSchema.parse(request);
@@ -346,45 +356,74 @@ export async function importBankStatementTransactions(request: {
       return { success: false, error: "No transactions selected for import" };
     }
 
-    // Transform transactions to match the new BatchImportTransaction format
+    // Transform transactions to match the format expected by bulkImportBankTransactions
     const transformedTransactions = selectedTransactions.map(tx => ({
-      ...tx,
-      date: new Date(tx.date),
-      type: (tx.type === "credit" ? "INCOME" : "EXPENSE") as "INCOME" | "EXPENSE" | "TRANSFER",
-      bankAccountId: validatedData.bankAccountId,
-      categoryId: undefined,
-      vendor: null,
-      externalId: null,
-      pending: false,
-      balance: undefined,
-      reference: undefined,
-      transactionType: undefined,
-      taxAmount: undefined,
-      principalAmount: undefined,
-      interestAmount: undefined,
+      date: tx.date,
+      description: tx.description,
+      amount: tx.type === "credit" ? tx.amount : -tx.amount, // Negative for expenses
+      category: tx.suggestedCategory, // Use AI-suggested category
+      notes: `Imported from PDF bank statement`,
     }));
 
-    // Use optimized batch import with full Chart of Accounts support
-    const result = await batchImportBankStatementTransactions({
-      documentId: validatedData.documentId,
+    // Use the same import pipeline as CSV/Excel for consistency
+    const result = await bulkImportBankTransactions({
       bankAccountId: validatedData.bankAccountId,
-      businessId,
       transactions: transformedTransactions,
     });
 
     if (!result.success) {
-      return result;
+      // Update document status to failed
+      await db.document.update({
+        where: { id: document.id },
+        data: {
+          processingStatus: "FAILED",
+          processingError: result.errors?.[0]?.error || "Import failed",
+          extractedData: {
+            ...((document.extractedData as object) || {}),
+            importError: result.errors?.[0]?.error,
+            importedTransactions: 0,
+            failedTransactions: result.failedCount || selectedTransactions.length,
+          },
+        },
+      });
+      
+      // Return in the expected format
+      return {
+        success: false,
+        error: result.errors?.[0]?.error || "Import failed",
+        data: {
+          imported: result.successCount || 0,
+          failed: result.failedCount || selectedTransactions.length,
+          skipped: 0,
+          total: selectedTransactions.length,
+        },
+      };
     }
 
-    // Update bank account name for logging
+    // Update document with success status
     await db.document.update({
       where: { id: document.id },
       data: {
-        notes: `Imported ${result.data?.imported || 0} transactions to ${bankAccount.name}`,
+        processingStatus: "COMPLETED",
+        notes: `Imported ${result.successCount || 0} transactions to ${bankAccount.name}`,
+        extractedData: {
+          ...((document.extractedData as object) || {}),
+          importedTransactions: result.successCount || 0,
+          failedTransactions: result.failedCount || 0,
+        },
       },
     });
 
-    return result;
+    // Return in the expected format
+    return {
+      success: true,
+      data: {
+        imported: result.successCount || 0,
+        failed: result.failedCount || 0,
+        skipped: 0,
+        total: selectedTransactions.length,
+      },
+    };
   } catch (error) {
     console.error("Error importing transactions:", error);
     return {
@@ -423,15 +462,32 @@ export async function getBankStatementHistory() {
 
     return {
       success: true,
-      data: statements.map(stmt => ({
-        id: stmt.id,
-        name: stmt.name,
-        uploadedAt: stmt.createdAt.toISOString(),
-        status: stmt.processingStatus,
-        transactionCount: stmt.extractedData 
-          ? (stmt.extractedData as { transactions?: unknown[] }).transactions?.length || 0 
-          : 0,
-      })),
+      data: statements.map(stmt => {
+        let transactionCount = 0;
+        
+        // Check if extractedData has import results
+        const extractedData = stmt.extractedData as {
+          importedTransactions?: number;
+          transactions?: unknown[];
+        } | null;
+        if (extractedData) {
+          if (extractedData.importedTransactions !== undefined) {
+            // For CSV/Excel imports, use the actual imported count
+            transactionCount = extractedData.importedTransactions;
+          } else if (extractedData.transactions) {
+            // For PDF processing, count transactions array
+            transactionCount = extractedData.transactions.length || 0;
+          }
+        }
+        
+        return {
+          id: stmt.id,
+          name: stmt.name,
+          uploadedAt: stmt.createdAt.toISOString(),
+          status: stmt.processingStatus,
+          transactionCount,
+        };
+      }),
     };
   } catch (error) {
     console.error("Error fetching bank statement history:", error);

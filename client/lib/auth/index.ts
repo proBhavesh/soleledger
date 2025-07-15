@@ -9,6 +9,7 @@ import { getServerSession } from "next-auth/next";
 
 import { db } from "@/lib/db";
 import { userAuthSchema } from "@/lib/types";
+import { createDefaultChartOfAccounts } from "@/lib/actions/chart-of-accounts-actions";
 
 // Extend NextAuth types using declaration merging
 declare module "next-auth" {
@@ -127,7 +128,7 @@ export const authOptions: NextAuthOptions = {
             }
             
             // Use a transaction to ensure all operations complete atomically
-            await db.$transaction(async (tx) => {
+            const newUser = await db.$transaction(async (tx) => {
               // Create new user with Google OAuth
               const createdUser = await tx.user.create({
                 data: {
@@ -150,13 +151,17 @@ export const authOptions: NextAuthOptions = {
                 });
 
                 // Create a default business
-                await tx.business.create({
+                const business = await tx.business.create({
                   data: {
                     name: `${user.name}'s Business`,
                     ownerId: createdUser.id,
                     industry: "Other",
                   },
                 });
+                
+                // Store business ID for Chart of Accounts creation
+                // Using type assertion to add temporary property
+                (createdUser as typeof createdUser & { _businessId?: string })._businessId = business.id;
               } else if (role === "ACCOUNTANT") {
                 // Create accountant profile
                 await tx.accountantProfile.create({
@@ -172,6 +177,19 @@ export const authOptions: NextAuthOptions = {
             
             // Add a small delay to ensure transaction is committed
             await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Create Chart of Accounts for business owners
+            type UserWithBusinessId = typeof newUser & { _businessId?: string };
+            const userWithBusiness = newUser as UserWithBusinessId;
+            if (userWithBusiness._businessId) {
+              const chartResult = await createDefaultChartOfAccounts(
+                userWithBusiness._businessId,
+                newUser.id
+              );
+              if (!chartResult.success) {
+                console.error("Failed to create Chart of Accounts for Google OAuth user:", chartResult.error);
+              }
+            }
           }
 
           return true;

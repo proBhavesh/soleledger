@@ -267,6 +267,50 @@ export async function updateAccount(
 }
 
 /**
+ * Check if a business has Chart of Accounts set up.
+ * Validates that the business has the minimum required account types and count.
+ * 
+ * @param {string} businessId - The ID of the business to check
+ * @returns {Promise<boolean>} True if Chart of Accounts is properly set up, false otherwise
+ */
+export async function hasChartOfAccounts(businessId: string): Promise<boolean> {
+  try {
+    // Validate business ID
+    if (!businessId || typeof businessId !== "string") {
+      return false;
+    }
+
+    const accountCount = await db.category.count({
+      where: {
+        businessId,
+        isActive: true,
+      },
+    });
+    
+    // Check if at least the minimum required accounts exist
+    const requiredAccountTypes: ("ASSET" | "INCOME" | "EXPENSE")[] = ["ASSET", "INCOME", "EXPENSE"];
+    const accountTypes = await db.category.findMany({
+      where: {
+        businessId,
+        isActive: true,
+        accountType: { in: requiredAccountTypes },
+      },
+      select: { accountType: true },
+      distinct: ["accountType"],
+    });
+    
+    // Require at least all required types and a minimum of 10 accounts total
+    const hasRequiredTypes = accountTypes.length >= requiredAccountTypes.length;
+    const hasMinimumAccounts = accountCount >= 10;
+    
+    return hasRequiredTypes && hasMinimumAccounts;
+  } catch (error) {
+    console.error("Error checking Chart of Accounts:", error);
+    return false;
+  }
+}
+
+/**
  * Deactivate an account (soft delete)
  */
 export async function deactivateAccount(accountId: string) {

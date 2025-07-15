@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -13,6 +13,15 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import {
   Select,
   SelectContent,
@@ -55,6 +64,9 @@ import {
   deactivateAccount,
 } from "@/lib/actions/chart-of-accounts-actions";
 import { type ChartAccount } from "@/lib/types";
+import type { AccountType } from "@/lib/types/chart-of-accounts";
+
+const ITEMS_PER_PAGE = 10;
 
 export function ChartOfAccountsSettings() {
   const [accounts, setAccounts] = useState<ChartAccount[]>([]);
@@ -64,7 +76,16 @@ export function ChartOfAccountsSettings() {
   const [editingAccount, setEditingAccount] = useState<ChartAccount | null>(
     null
   );
-  const [formData, setFormData] = useState({
+  const [currentPage, setCurrentPage] = useState(1);
+  
+  // Form state with proper typing
+  const [formData, setFormData] = useState<{
+    accountCode: string;
+    name: string;
+    accountType: AccountType | "";
+    description: string;
+    parentId: string;
+  }>({
     accountCode: "",
     name: "",
     accountType: "",
@@ -103,12 +124,7 @@ export function ChartOfAccountsSettings() {
       const result = await createAccount({
         accountCode: formData.accountCode,
         name: formData.name,
-        accountType: formData.accountType as
-          | "ASSET"
-          | "LIABILITY"
-          | "EQUITY"
-          | "INCOME"
-          | "EXPENSE",
+        accountType: formData.accountType as AccountType,
         description: formData.description || undefined,
         parentId: formData.parentId || undefined,
       });
@@ -142,12 +158,7 @@ export function ChartOfAccountsSettings() {
       const result = await updateAccount(editingAccount.id, {
         accountCode: formData.accountCode,
         name: formData.name,
-        accountType: formData.accountType as
-          | "ASSET"
-          | "LIABILITY"
-          | "EQUITY"
-          | "INCOME"
-          | "EXPENSE",
+        accountType: formData.accountType as AccountType,
         description: formData.description || undefined,
         parentId: formData.parentId || undefined,
       });
@@ -191,7 +202,7 @@ export function ChartOfAccountsSettings() {
     setFormData({
       accountCode: account.accountCode,
       name: account.name,
-      accountType: account.accountType,
+      accountType: account.accountType as AccountType,
       description: account.description || "",
       parentId: account.parentId || "",
     });
@@ -247,6 +258,17 @@ export function ChartOfAccountsSettings() {
     account,
     ...(account.subAccounts || []),
   ]);
+  
+  // Calculate pagination
+  const totalPages = Math.ceil(flattenedAccounts.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedAccounts = flattenedAccounts.slice(startIndex, endIndex);
+  
+  // Reset to page 1 when accounts change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [accounts.length]);
 
   return (
     <div className="space-y-6">
@@ -263,10 +285,19 @@ export function ChartOfAccountsSettings() {
                 {getAccountTypeIcon(type)}
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{typeAccounts.length}</div>
-                <p className="text-xs text-muted-foreground">
-                  {typeAccounts.filter((acc) => acc.isActive).length} active
-                </p>
+                {isLoading ? (
+                  <>
+                    <Skeleton className="h-8 w-12 mb-2" />
+                    <Skeleton className="h-3 w-16" />
+                  </>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">{typeAccounts.length}</div>
+                    <p className="text-xs text-muted-foreground">
+                      {typeAccounts.filter((acc) => acc.isActive).length} active
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
           );
@@ -322,7 +353,7 @@ export function ChartOfAccountsSettings() {
                       <Select
                         value={formData.accountType}
                         onValueChange={(value) =>
-                          setFormData({ ...formData, accountType: value })
+                          setFormData({ ...formData, accountType: value as AccountType })
                         }
                       >
                         <SelectTrigger>
@@ -379,7 +410,32 @@ export function ChartOfAccountsSettings() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8">Loading accounts...</div>
+            <div className="space-y-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Account Code</TableHead>
+                    <TableHead>Account Name</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <TableRow key={index}>
+                      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-4 w-20 inline-block" /></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
             <Table>
               <TableHeader>
@@ -393,7 +449,7 @@ export function ChartOfAccountsSettings() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {flattenedAccounts.slice(0, 10).map((account) => (
+                {paginatedAccounts.map((account) => (
                   <TableRow key={account.id}>
                     <TableCell className="font-mono font-medium">
                       {account.accountCode}
@@ -445,9 +501,54 @@ export function ChartOfAccountsSettings() {
               </TableBody>
             </Table>
           )}
-          {flattenedAccounts.length > 10 && (
-            <div className="text-center py-4 text-sm text-muted-foreground">
-              Showing first 10 accounts of {flattenedAccounts.length} total
+          
+          {/* Pagination */}
+          {flattenedAccounts.length > ITEMS_PER_PAGE && (
+            <div className="flex items-center justify-between py-4">
+              <div className="text-sm text-muted-foreground">
+                Showing {startIndex + 1}-{Math.min(endIndex, flattenedAccounts.length)} of {flattenedAccounts.length} accounts
+              </div>
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious 
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(page => {
+                      // Show first page, last page, current page, and pages around current
+                      return page === 1 || 
+                             page === totalPages || 
+                             Math.abs(page - currentPage) <= 1;
+                    })
+                    .map((page, index, array) => (
+                      <React.Fragment key={page}>
+                        {index > 0 && array[index - 1] < page - 1 && (
+                          <PaginationItem>
+                            <span className="px-2">...</span>
+                          </PaginationItem>
+                        )}
+                        <PaginationItem>
+                          <PaginationLink
+                            onClick={() => setCurrentPage(page)}
+                            isActive={currentPage === page}
+                            className="cursor-pointer"
+                          >
+                            {page}
+                          </PaginationLink>
+                        </PaginationItem>
+                      </React.Fragment>
+                    ))}
+                  <PaginationItem>
+                    <PaginationNext 
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
             </div>
           )}
         </CardContent>
@@ -478,7 +579,7 @@ export function ChartOfAccountsSettings() {
                 <Select
                   value={formData.accountType}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, accountType: value })
+                    setFormData({ ...formData, accountType: value as AccountType })
                   }
                 >
                   <SelectTrigger>

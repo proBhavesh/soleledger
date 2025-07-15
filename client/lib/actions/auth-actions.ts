@@ -126,10 +126,13 @@ export async function registerAction(formData: FormData) {
           return newBusiness;
         });
 
-        // Create default Chart of Accounts for the business (async, non-blocking)
-        createDefaultChartOfAccounts(business.id, user.id).catch(chartError => {
-          console.error("Chart of accounts creation failed (background):", chartError);
-        });
+        // Create default Chart of Accounts for the business (synchronous, required)
+        const chartResult = await createDefaultChartOfAccounts(business.id, user.id);
+        if (!chartResult.success) {
+          console.error("Chart of accounts creation failed:", chartResult.error);
+          // Don't fail the registration, but log the error
+          // User can still set up Chart of Accounts later
+        }
       } catch (profileError) {
         console.error("Business profile creation error:", profileError);
         // Clean up user if profile creation fails
