@@ -11,6 +11,8 @@ import {
 import { Products, CountryCode, LinkTokenCreateRequest } from "plaid";
 import { checkBankAccountLimit } from "@/lib/services/usage-tracking";
 import { revalidatePath } from "next/cache";
+import { createOpeningBalanceJournalEntry } from "@/lib/actions/opening-balance-actions";
+import { createBankAccountChartEntry } from "@/lib/actions/chart-of-accounts-actions";
 import { PlaidErrorDetails, PlaidErrorObject } from "@/lib/types";
 import { mapPlaidAccountType } from "@/lib/plaid/account-type-mapper";
 import { 
@@ -199,7 +201,7 @@ export async function exchangePublicToken(
       );
 
       if (metadataAccount) {
-        await db.bankAccount.create({
+        const newAccount = await db.bankAccount.create({
           data: {
             name: account.name,
             accountType: mapPlaidAccountType(account.type, account.subtype),
@@ -215,6 +217,40 @@ export async function exchangePublicToken(
             userId,
           },
         });
+
+        // Create Chart of Accounts entry for this bank account
+        const chartResult = await createBankAccountChartEntry(
+          {
+            id: newAccount.id,
+            businessId: newAccount.businessId,
+            name: newAccount.name,
+            accountType: newAccount.accountType,
+            institution: newAccount.institution,
+            accountNumber: newAccount.accountNumber,
+          },
+          userId
+        );
+
+        if (!chartResult.success) {
+          console.error(`Failed to create Chart of Accounts entry for Plaid account ${account.name}:`, chartResult.error);
+        }
+
+        // Create opening balance journal entry if balance is non-zero
+        const balance = account.balances.current ?? 0;
+        if (Math.abs(balance) >= 0.01) { // Only create if balance is meaningful
+          const journalResult = await createOpeningBalanceJournalEntry({
+            bankAccountId: newAccount.id,
+            balance,
+            businessId,
+            userId
+          });
+          
+          if (!journalResult.success) {
+            console.error(`Failed to create opening balance journal entry for account ${account.name}:`, journalResult.error);
+            // Log but continue - the bank account is already created
+            // In production, you might want to track these failures for manual review
+          }
+        }
       }
     }
 

@@ -6,6 +6,13 @@ import { z } from "zod";
 import { ChartAccount } from "@/lib/types";
 import { getCurrentBusinessId } from "./business-context-actions";
 import { CHART_OF_ACCOUNTS } from "@/lib/constants/chart-of-accounts";
+import { 
+  CreateBankAccountChartEntryParams,
+  CreateBankAccountChartEntryResponse,
+  CHART_OF_ACCOUNTS_ERROR_MESSAGES,
+  BANK_ACCOUNT_CODE_RANGES,
+  createBankAccountChartEntrySchema
+} from "@/lib/types/chart-of-accounts";
 
 /**
  * Create Chart of Accounts for a new business based on client requirements
@@ -39,7 +46,7 @@ export async function createDefaultChartOfAccounts(
     console.error("Error creating chart of accounts:", error);
     return {
       success: false,
-      error: "Failed to create chart of accounts",
+      error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.createFailed,
     };
   }
 }
@@ -51,7 +58,7 @@ export async function getChartOfAccounts(businessId?: string) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return { success: false, error: "Unauthorized" };
+      return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.unauthorized };
     }
 
     // Get user's business if not provided
@@ -60,7 +67,7 @@ export async function getChartOfAccounts(businessId?: string) {
       // Use getCurrentBusinessId helper which handles multi-client system
       const currentBusinessId = await getCurrentBusinessId();
       if (!currentBusinessId) {
-        return { success: false, error: "No business found" };
+        return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.noBusinessFound };
       }
       targetBusinessId = currentBusinessId;
     }
@@ -113,7 +120,7 @@ export async function getChartOfAccounts(businessId?: string) {
     return { success: true, accounts: chartAccounts };
   } catch (error) {
     console.error("Error fetching chart of accounts:", error);
-    return { success: false, error: "Failed to fetch chart of accounts" };
+    return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.createFailed };
   }
 }
 
@@ -136,7 +143,7 @@ export async function createAccount(data: z.infer<typeof createAccountSchema>) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return { success: false, error: "Unauthorized" };
+      return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.unauthorized };
     }
 
     const validatedData = createAccountSchema.parse(data);
@@ -144,7 +151,7 @@ export async function createAccount(data: z.infer<typeof createAccountSchema>) {
     // Get user's current business using multi-client aware helper
     const businessId = await getCurrentBusinessId();
     if (!businessId) {
-      return { success: false, error: "No business found" };
+      return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.noBusinessFound };
     }
 
     // Check if account code already exists
@@ -156,7 +163,7 @@ export async function createAccount(data: z.infer<typeof createAccountSchema>) {
     });
 
     if (existingAccount) {
-      return { success: false, error: "Account code already exists" };
+      return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.accountCodeExists };
     }
 
     // Determine sort order based on account type
@@ -196,9 +203,9 @@ export async function createAccount(data: z.infer<typeof createAccountSchema>) {
   } catch (error) {
     console.error("Error creating account:", error);
     if (error instanceof z.ZodError) {
-      return { success: false, error: "Invalid account data" };
+      return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.invalidAccountData };
     }
-    return { success: false, error: "Failed to create account" };
+    return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.createFailed };
   }
 }
 
@@ -212,13 +219,13 @@ export async function updateAccount(
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return { success: false, error: "Unauthorized" };
+      return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.unauthorized };
     }
 
     // Get user's current business using multi-client aware helper
     const businessId = await getCurrentBusinessId();
     if (!businessId) {
-      return { success: false, error: "No business found" };
+      return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.noBusinessFound };
     }
 
     // Verify account belongs to user's business
@@ -230,7 +237,7 @@ export async function updateAccount(
     });
 
     if (!existingAccount) {
-      return { success: false, error: "Account not found" };
+      return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.accountNotFound };
     }
 
     // Check if new account code conflicts (if being changed)
@@ -244,7 +251,7 @@ export async function updateAccount(
       });
 
       if (conflictingAccount) {
-        return { success: false, error: "Account code already exists" };
+        return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.accountCodeExists };
       }
     }
 
@@ -262,7 +269,7 @@ export async function updateAccount(
     return { success: true, account: updatedAccount };
   } catch (error) {
     console.error("Error updating account:", error);
-    return { success: false, error: "Failed to update account" };
+    return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.updateFailed };
   }
 }
 
@@ -317,13 +324,13 @@ export async function deactivateAccount(accountId: string) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return { success: false, error: "Unauthorized" };
+      return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.unauthorized };
     }
 
     // Get user's current business using multi-client aware helper
     const businessId = await getCurrentBusinessId();
     if (!businessId) {
-      return { success: false, error: "No business found" };
+      return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.noBusinessFound };
     }
 
     // Verify account belongs to user's business
@@ -335,7 +342,7 @@ export async function deactivateAccount(accountId: string) {
     });
 
     if (!account) {
-      return { success: false, error: "Account not found" };
+      return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.accountNotFound };
     }
 
     // Check if account has transactions
@@ -367,7 +374,7 @@ export async function deactivateAccount(accountId: string) {
     }
   } catch (error) {
     console.error("Error deactivating account:", error);
-    return { success: false, error: "Failed to deactivate account" };
+    return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.deactivateFailed };
   }
 }
 
@@ -382,7 +389,7 @@ export async function updateChartOfAccounts(businessId?: string) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return { success: false, error: "Unauthorized" };
+      return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.unauthorized };
     }
 
     // Get business ID
@@ -390,7 +397,7 @@ export async function updateChartOfAccounts(businessId?: string) {
     if (!targetBusinessId) {
       const currentBusinessId = await getCurrentBusinessId();
       if (!currentBusinessId) {
-        return { success: false, error: "No business found" };
+        return { success: false, error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.noBusinessFound };
       }
       targetBusinessId = currentBusinessId;
     }
@@ -446,7 +453,209 @@ export async function updateChartOfAccounts(businessId?: string) {
     console.error("Error updating Chart of Accounts:", error);
     return {
       success: false,
-      error: "Failed to import Chart of Accounts",
+      error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.importFailed,
+    };
+  }
+}
+
+/**
+ * Get the next available account code for a bank account (1201-1299 range)
+ * 
+ * This function finds the next sequential account code in the bank account range,
+ * ensuring no conflicts with existing accounts. It starts from 1201 and increments
+ * until it finds an available code.
+ * 
+ * @param businessId - The business ID to check for existing accounts
+ * @returns The next available account code as a string, or null if range is exhausted
+ * 
+ * @internal
+ */
+async function getNextBankAccountCode(businessId: string): Promise<string | null> {
+  const range = BANK_ACCOUNT_CODE_RANGES.BANK_ACCOUNTS;
+  const existingAccounts = await db.category.findMany({
+    where: {
+      businessId,
+      accountCode: {
+        gte: range.start,
+        lte: range.end,
+      },
+    },
+    select: { accountCode: true },
+    orderBy: { accountCode: "asc" },
+  });
+
+  // Start from the beginning of the range
+  let nextCode = parseInt(range.start);
+  
+  for (const account of existingAccounts) {
+    const existingCode = parseInt(account.accountCode);
+    if (existingCode === nextCode) {
+      nextCode++;
+    } else {
+      break;
+    }
+  }
+
+  // Check if we've exhausted the range
+  if (nextCode > parseInt(range.end)) {
+    return null;
+  }
+
+  return nextCode.toString();
+}
+
+/**
+ * Get the next available account code for a credit card (2101-2199 range)
+ * 
+ * This function finds the next sequential account code in the credit card range,
+ * ensuring no conflicts with existing accounts. It starts from 2101 and increments
+ * until it finds an available code. Credit cards are liabilities in the Chart of Accounts.
+ * 
+ * @param businessId - The business ID to check for existing accounts
+ * @returns The next available account code as a string, or null if range is exhausted
+ * 
+ * @internal
+ */
+async function getNextCreditCardAccountCode(businessId: string): Promise<string | null> {
+  const range = BANK_ACCOUNT_CODE_RANGES.CREDIT_CARDS;
+  const existingAccounts = await db.category.findMany({
+    where: {
+      businessId,
+      accountCode: {
+        gte: range.start,
+        lte: range.end,
+      },
+    },
+    select: { accountCode: true },
+    orderBy: { accountCode: "asc" },
+  });
+
+  // Start from the beginning of the range
+  let nextCode = parseInt(range.start);
+  
+  for (const account of existingAccounts) {
+    const existingCode = parseInt(account.accountCode);
+    if (existingCode === nextCode) {
+      nextCode++;
+    } else {
+      break;
+    }
+  }
+
+  // Check if we've exhausted the range
+  if (nextCode > parseInt(range.end)) {
+    return null;
+  }
+
+  return nextCode.toString();
+}
+
+/**
+ * Create a Chart of Accounts entry for a bank account
+ * 
+ * This function creates a dedicated GL account for each bank account to enable
+ * proper double-entry bookkeeping and individual account tracking. Bank accounts
+ * are assigned codes in the 1201-1299 range, while credit cards use 2101-2199.
+ * 
+ * @param bankAccount - The bank account details including ID, name, type, and institution
+ * @param userId - The ID of the user creating the account (for audit trail)
+ * @returns Promise resolving to success status with chart account details or error
+ * 
+ * @example
+ * const result = await createBankAccountChartEntry({
+ *   id: "clxyz123",
+ *   businessId: "clxyz456",
+ *   name: "Business Checking",
+ *   accountType: "CHECKING",
+ *   institution: "TD Bank",
+ *   accountNumber: "****1234"
+ * }, userId);
+ * 
+ * if (result.success) {
+ *   console.log(`Created GL account ${result.chartAccount.accountCode}`);
+ * }
+ */
+export async function createBankAccountChartEntry(
+  bankAccount: CreateBankAccountChartEntryParams,
+  userId: string
+): Promise<CreateBankAccountChartEntryResponse> {
+  try {
+    // Validate input
+    const validatedData = createBankAccountChartEntrySchema.parse(bankAccount);
+    
+    // Determine if it's a credit card or regular bank account
+    const isCreditCard = validatedData.accountType === "CREDIT_CARD";
+    
+    // Get the next available account code
+    const accountCode = isCreditCard 
+      ? await getNextCreditCardAccountCode(validatedData.businessId)
+      : await getNextBankAccountCode(validatedData.businessId);
+
+    if (!accountCode) {
+      return { 
+        success: false, 
+        error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.noAvailableAccountCodes(
+          isCreditCard ? 'credit card' : 'bank account'
+        ) 
+      };
+    }
+
+    // Create the account name with institution and last 4 digits
+    let accountName = validatedData.name;
+    if (validatedData.institution) {
+      accountName = `${validatedData.institution} - ${validatedData.name}`;
+    }
+    if (validatedData.accountNumber) {
+      accountName += ` (${validatedData.accountNumber})`;
+    }
+
+    // Create the Chart of Accounts entry
+    const chartAccount = await db.category.create({
+      data: {
+        businessId: validatedData.businessId,
+        accountCode,
+        name: accountName,
+        description: `Bank account: ${validatedData.name}`,
+        accountType: isCreditCard ? "LIABILITY" : "ASSET",
+        isDefault: false,
+        isActive: true,
+        sortOrder: parseInt(accountCode),
+        creatorId: userId,
+        // Set parent account if needed
+        parentId: undefined, // Could link to parent Cash or Credit Cards account if hierarchical
+      },
+    });
+
+    // Update the bank account with the Chart of Accounts ID
+    await db.bankAccount.update({
+      where: { id: validatedData.id },
+      data: { chartOfAccountsId: chartAccount.id },
+    });
+
+    return { 
+      success: true, 
+      chartAccount: {
+        id: chartAccount.id,
+        accountCode: chartAccount.accountCode,
+        name: chartAccount.name,
+        accountType: chartAccount.accountType,
+      },
+      message: `Created Chart of Accounts entry: ${accountCode} - ${accountName}`
+    };
+  } catch (error) {
+    console.error("Error creating bank account chart entry:", error);
+    
+    // Handle validation errors
+    if (error instanceof z.ZodError) {
+      return { 
+        success: false, 
+        error: error.errors[0]?.message || CHART_OF_ACCOUNTS_ERROR_MESSAGES.invalidAccountData
+      };
+    }
+    
+    return { 
+      success: false, 
+      error: CHART_OF_ACCOUNTS_ERROR_MESSAGES.bankAccountChartEntryFailed 
     };
   }
 }

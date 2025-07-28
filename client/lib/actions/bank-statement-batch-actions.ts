@@ -211,6 +211,24 @@ export async function batchImportBankStatementTransactions(request: {
   }
 
   try {
+    // Get bank account with its Chart of Accounts entry
+    const bankAccount = await db.bankAccount.findFirst({
+      where: {
+        id: bankAccountId,
+        businessId,
+      },
+      include: {
+        chartOfAccounts: true,
+      },
+    });
+
+    if (!bankAccount) {
+      return {
+        success: false,
+        error: "Bank account not found",
+      };
+    }
+
     // Verify business access
     const businessMember = await db.businessMember.findFirst({
       where: {
@@ -235,11 +253,19 @@ export async function batchImportBankStatementTransactions(request: {
     // Get chart of accounts mapping
     const accountMap = await getChartOfAccountsMap(businessId);
     
+    // Use bank account's specific Chart of Accounts entry if available
+    let cashAccountId = bankAccount.chartOfAccounts?.id;
+    
+    // Fall back to generic cash account if bank doesn't have specific account
+    if (!cashAccountId) {
+      cashAccountId = accountMap.cash;
+    }
+    
     // Ensure we have required accounts
-    if (!accountMap.cash) {
+    if (!cashAccountId) {
       return {
         success: false,
-        error: `Cash account (${ACCOUNT_CODES.CASH}) not found. Please ensure your Chart of Accounts is properly configured.`,
+        error: `Neither bank-specific nor general cash account (${ACCOUNT_CODES.CASH}) found. Please ensure your Chart of Accounts is properly configured.`,
         data: {
           imported: 0,
           failed: selectedTransactions.length,
@@ -265,7 +291,7 @@ export async function batchImportBankStatementTransactions(request: {
 
     // Create journal entry factory
     const journalFactory = new JournalEntryFactory({
-      cashAccountId: accountMap.cash,
+      cashAccountId: cashAccountId,
       accountsReceivableId: accountMap.accountsReceivable,
       inventoryId: accountMap.inventory,
       prepaidExpensesId: accountMap.prepaidExpenses,

@@ -32,6 +32,7 @@ export const CHART_OF_ACCOUNTS: readonly {
   
   // Equity
   { code: "3000", name: "Owner's Equity", type: "EQUITY", description: "Owner's investment in the business." },
+  { code: "3050", name: "Opening Balance Equity", type: "EQUITY", description: "Temporary account for bank opening balances to ensure accounting equation balances." },
   { code: "3100", name: "Retained Earnings", type: "EQUITY", description: "Accumulated profits or losses retained in the business." },
   { code: "3200", name: "Drawings/Distributions", type: "EQUITY", description: "Withdrawals made by the owner (sole proprietorship)." },
   { code: "3300", name: "Common Stock", type: "EQUITY", description: "Capital invested by shareholders (corporation)." },
@@ -86,6 +87,7 @@ export const ACCOUNT_CODES = {
   
   // Equity accounts
   OWNERS_EQUITY: "3000",
+  OPENING_BALANCE_EQUITY: "3050",
   RETAINED_EARNINGS: "3100",
   DRAWINGS_DISTRIBUTIONS: "3200",
   COMMON_STOCK: "3300",

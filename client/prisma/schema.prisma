@@ -231,30 +231,33 @@ model Usage {
 }
 
 model BankAccount {
-  id               String           @id @default(cuid())
-  businessId       String
-  userId           String
-  name             String
-  accountNumber    String?
-  routingNumber    String?
-  institution      String?
-  accountType      BankAccountType  @default(CHECKING)
-  balance          Float            @default(0)
-  currency         String           @default("CAD")
-  isManual         Boolean          @default(false)
-  lastManualUpdate DateTime?
-  plaidItemId      String?
-  plaidAccessToken String?
-  lastSync         DateTime?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  business         Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions     Transaction[]
+  id                   String           @id @default(cuid())
+  businessId           String
+  userId               String
+  name                 String
+  accountNumber        String?
+  routingNumber        String?
+  institution          String?
+  accountType          BankAccountType  @default(CHECKING)
+  balance              Float            @default(0)
+  currency             String           @default("CAD")
+  isManual             Boolean          @default(false)
+  lastManualUpdate     DateTime?
+  plaidItemId          String?
+  plaidAccessToken     String?
+  lastSync             DateTime?
+  chartOfAccountsId    String?          // Links to specific GL account
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  business             Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chartOfAccounts      Category?        @relation(fields: [chartOfAccountsId], references: [id])
+  transactions         Transaction[]
   
   @@index([plaidAccessToken])
   @@index([businessId, userId])
   @@index([isManual])
+  @@index([chartOfAccountsId])
 }
 
 model Category {
@@ -279,6 +282,7 @@ model Category {
   subCategories Category[]      @relation("SubCategories")
   transactions  Transaction[]
   journalEntries JournalEntry[]
+  bankAccounts  BankAccount[]   // Bank accounts linked to this GL account
 
   @@unique([businessId, accountCode])
   @@index([businessId, accountType])

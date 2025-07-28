@@ -14,6 +14,8 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { checkBankAccountLimit } from "@/lib/services/usage-tracking";
 import type { BankAccount } from "@/generated/prisma";
+import { createOpeningBalanceJournalEntry, createBalanceAdjustmentJournalEntry } from "@/lib/actions/opening-balance-actions";
+import { createBankAccountChartEntry } from "@/lib/actions/chart-of-accounts-actions";
 
 /**
  * Creates a manual bank account for financial institutions not supported by Plaid.
@@ -73,8 +75,43 @@ export async function createManualBankAccount(
         accountType: true,
         balance: true,
         institution: true,
+        businessId: true,
+        accountNumber: true,
       },
     });
+
+    // Create Chart of Accounts entry for this bank account
+    const chartResult = await createBankAccountChartEntry(
+      {
+        id: bankAccount.id,
+        businessId: bankAccount.businessId,
+        name: bankAccount.name,
+        accountType: bankAccount.accountType,
+        institution: bankAccount.institution,
+        accountNumber: bankAccount.accountNumber,
+      },
+      session.user.id
+    );
+
+    if (!chartResult.success) {
+      // Log the error but don't fail the bank account creation
+      console.error("Failed to create Chart of Accounts entry for bank account:", chartResult.error);
+    }
+
+    // Create opening balance journal entry if balance is non-zero
+    if (validatedData.balance !== 0) {
+      const journalResult = await createOpeningBalanceJournalEntry({
+        bankAccountId: bankAccount.id,
+        balance: validatedData.balance,
+        businessId,
+        userId: session.user.id
+      });
+      
+      if (!journalResult.success) {
+        console.error("Failed to create opening balance journal entry:", journalResult.error);
+        // Continue anyway - the bank account is already created
+      }
+    }
 
     // Revalidate the bank accounts page
     revalidatePath("/dashboard/bank-accounts");
@@ -137,13 +174,17 @@ export async function updateManualBalance(
       return { success: false, error: BANK_ACCOUNT_ERROR_MESSAGES.notManual };
     }
 
+    // Store the old balance for journal entry creation
+    const oldBalance = bankAccount.balance;
+    const newBalance = validatedData.balance;
+
     // Update the balance
     const updatedAccount = await db.bankAccount.update({
       where: {
         id: validatedData.bankAccountId,
       },
       data: {
-        balance: validatedData.balance,
+        balance: newBalance,
         lastManualUpdate: new Date(),
       },
       select: {
@@ -152,11 +193,30 @@ export async function updateManualBalance(
         accountType: true,
         balance: true,
         institution: true,
+        businessId: true,
       },
     });
 
+    // Create balance adjustment journal entries if balance changed
+    if (Math.abs(oldBalance - newBalance) >= 0.01) {
+      const journalResult = await createBalanceAdjustmentJournalEntry({
+        bankAccountId: updatedAccount.id,
+        oldBalance,
+        newBalance,
+        businessId: updatedAccount.businessId,
+        userId: session.user.id
+      });
+
+      if (!journalResult.success) {
+        console.error("Failed to create balance adjustment journal entry:", journalResult.error);
+        // Note: We don't rollback the balance update here as it's already committed
+        // In production, you might want to use a transaction to ensure atomicity
+      }
+    }
+
     // Revalidate the bank accounts page
     revalidatePath("/dashboard/bank-accounts");
+    revalidatePath("/dashboard");
 
     return {
       success: true,

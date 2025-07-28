@@ -75,11 +75,14 @@ export async function bulkImportBankTransactions(
       };
     }
 
-    // Verify bank account belongs to business
+    // Verify bank account belongs to business and get its Chart of Accounts
     const bankAccount = await db.bankAccount.findFirst({
       where: {
         id: request.bankAccountId,
         businessId,
+      },
+      include: {
+        chartOfAccounts: true,
       },
     });
 
@@ -154,11 +157,16 @@ export async function bulkImportBankTransactions(
         accountMap.otherIncome = account.id;
         journalAccountIds.otherIncomeId = account.id;
       }
-      // Map asset accounts
-      if (account.accountCode === ACCOUNT_CODES.CASH) {
+      // Map asset accounts - only use generic cash as fallback
+      if (!journalAccountIds.cashAccountId && account.accountCode === ACCOUNT_CODES.CASH) {
         journalAccountIds.cashAccountId = account.id;
       }
     });
+    
+    // Use the bank account's specific Chart of Accounts entry if available
+    if (bankAccount.chartOfAccounts) {
+      journalAccountIds.cashAccountId = bankAccount.chartOfAccounts.id;
+    }
     
     // If no miscellaneous expense account, use any expense account as fallback
     if (!journalAccountIds.miscExpenseId) {
