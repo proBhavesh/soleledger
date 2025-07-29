@@ -18,6 +18,48 @@ import { createOpeningBalanceJournalEntry, createBalanceAdjustmentJournalEntry }
 import { createBankAccountChartEntry } from "@/lib/actions/chart-of-accounts-actions";
 
 /**
+ * Calculate the actual balance of a bank account from its journal entries.
+ * 
+ * This function implements proper double-entry bookkeeping rules:
+ * - For ASSET accounts (checking, savings): Debits increase balance, Credits decrease
+ * - For LIABILITY accounts (credit cards): Credits increase balance, Debits decrease
+ * 
+ * @param chartOfAccountsId - The Chart of Accounts ID linked to the bank account
+ * @param accountType - The type of bank account (determines if it's an asset or liability)
+ * @returns The calculated balance based on all journal entries
+ */
+export async function calculateBankAccountBalance(
+  chartOfAccountsId: string,
+  accountType: string
+): Promise<number> {
+  const journalEntries = await db.journalEntry.groupBy({
+    by: ['accountId'],
+    where: {
+      accountId: chartOfAccountsId,
+    },
+    _sum: {
+      debitAmount: true,
+      creditAmount: true,
+    },
+  });
+
+  if (journalEntries.length === 0) {
+    return 0;
+  }
+
+  const totals = journalEntries[0]._sum;
+  const totalDebits = totals.debitAmount || 0;
+  const totalCredits = totals.creditAmount || 0;
+
+  // For ASSET accounts (checking, savings): Debits increase, Credits decrease
+  // For LIABILITY accounts (credit cards): Credits increase, Debits decrease
+  const isLiability = accountType === 'CREDIT_CARD';
+  return isLiability 
+    ? totalCredits - totalDebits 
+    : totalDebits - totalCredits;
+}
+
+/**
  * Creates a manual bank account for financial institutions not supported by Plaid.
  * 
  * @param data - The bank account details
@@ -308,7 +350,7 @@ export async function deleteManualBankAccount(
  * 
  * @throws Will return error if user unauthorized or no business selected
  */
-export async function getBankAccountsForBusiness(): Promise<BankAccountActionResponse<Array<BankAccount & { _count: { transactions: number } }>>> {
+export async function getBankAccountsForBusiness(): Promise<BankAccountActionResponse<Array<BankAccount & { _count: { transactions: number }, calculatedBalance?: number }>>> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -333,15 +375,100 @@ export async function getBankAccountsForBusiness(): Promise<BankAccountActionRes
         _count: {
           select: { transactions: true },
         },
+        chartOfAccounts: true,
       },
     });
 
+    // Calculate actual balances from journal entries for accounts with Chart of Accounts mapping
+    const accountsWithCalculatedBalances = await Promise.all(
+      bankAccounts.map(async (account) => {
+        if (account.chartOfAccountsId) {
+          // Calculate balance from journal entries
+          const calculatedBalance = await calculateBankAccountBalance(
+            account.chartOfAccountsId,
+            account.accountType
+          );
+
+          return {
+            ...account,
+            calculatedBalance,
+            // Use calculated balance as the primary balance if available
+            balance: calculatedBalance,
+          };
+        }
+        
+        // Return account as-is if no Chart of Accounts mapping
+        return account;
+      })
+    );
+
     return {
       success: true,
-      data: bankAccounts,
+      data: accountsWithCalculatedBalances,
     };
   } catch (error) {
     console.error("Error fetching bank accounts:", error);
+    return { success: false, error: BANK_ACCOUNT_ERROR_MESSAGES.fetchFailed };
+  }
+}
+
+/**
+ * Get a single bank account with its calculated balance from journal entries
+ * 
+ * @param bankAccountId - The ID of the bank account to fetch
+ * @returns Bank account with calculated balance or error
+ */
+export async function getBankAccountWithBalance(
+  bankAccountId: string
+): Promise<BankAccountActionResponse<BankAccount & { calculatedBalance?: number }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: BANK_ACCOUNT_ERROR_MESSAGES.unauthorized };
+    }
+
+    const businessId = await getCurrentBusinessId();
+    if (!businessId) {
+      return { success: false, error: BANK_ACCOUNT_ERROR_MESSAGES.noBusinessSelected };
+    }
+
+    const bankAccount = await db.bankAccount.findFirst({
+      where: {
+        id: bankAccountId,
+        businessId,
+      },
+      include: {
+        chartOfAccounts: true,
+      },
+    });
+
+    if (!bankAccount) {
+      return { success: false, error: BANK_ACCOUNT_ERROR_MESSAGES.notFound };
+    }
+
+    // Calculate balance from journal entries if Chart of Accounts is linked
+    if (bankAccount.chartOfAccountsId) {
+      const calculatedBalance = await calculateBankAccountBalance(
+        bankAccount.chartOfAccountsId,
+        bankAccount.accountType
+      );
+
+      return {
+        success: true,
+        data: {
+          ...bankAccount,
+          calculatedBalance,
+          balance: calculatedBalance, // Override with calculated balance
+        },
+      };
+    }
+
+    return {
+      success: true,
+      data: bankAccount,
+    };
+  } catch (error) {
+    console.error("Error fetching bank account with balance:", error);
     return { success: false, error: BANK_ACCOUNT_ERROR_MESSAGES.fetchFailed };
   }
 }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CHART_OF_ACCOUNTS } from "@/lib/constants/chart-of-accounts";
 
 // Schema for bank statement transaction
 const BankStatementTransactionSchema = z.object({
@@ -80,6 +81,13 @@ function preprocessClaudeResponse(data: unknown): unknown {
 export async function processBankStatementWithAI(
   fileUrl: string
 ): Promise<BankStatementData> {
+  // Get valid Chart of Accounts names for the prompt
+  const chartAccountNames = CHART_OF_ACCOUNTS.map(acc => `"${acc.name}"`).join(", ");
+  const incomeAccounts = CHART_OF_ACCOUNTS.filter(acc => acc.type === "INCOME").map(acc => `- "${acc.name}" - ${acc.description}`).join("\n    ");
+  const expenseAccounts = CHART_OF_ACCOUNTS.filter(acc => acc.type === "EXPENSE").map(acc => `- "${acc.name}" - ${acc.description}`).join("\n    ");
+  const assetAccounts = CHART_OF_ACCOUNTS.filter(acc => acc.type === "ASSET").map(acc => `- "${acc.name}" - ${acc.description}`).join("\n    ");
+  const liabilityAccounts = CHART_OF_ACCOUNTS.filter(acc => acc.type === "LIABILITY").map(acc => `- "${acc.name}" - ${acc.description}`).join("\n    ");
+
   const prompt = `
     Analyze this bank statement PDF and extract ALL transactions.
 
@@ -109,8 +117,8 @@ export async function processBankStatementWithAI(
           "type": "debit" or "credit",
           "balance": 900.00,
           "reference": "Reference number if available",
-          "suggestedCategory": "Suggested category based on description",
-          "transactionType": "Transaction type (see above)",
+          "suggestedCategory": "Must be one of the Chart of Accounts names listed below",
+          "transactionType": "Transaction type (see below)",
           "taxAmount": 15.00,
           "principalAmount": 800.00,
           "interestAmount": 200.00
@@ -120,11 +128,9 @@ export async function processBankStatementWithAI(
       "notes": "Any important notes about the statement"
     }
 
-    IMPORTANT: Analyze each transaction carefully and assign the appropriate category AND transactionType:
-    
-    For suggestedCategory, use the exact account name from Chart of Accounts.
-    For transactionType, identify the nature of the transaction:
-    
+    CRITICAL: For suggestedCategory, you MUST use ONLY these exact Chart of Accounts names:
+    ${chartAccountNames}
+
     TRANSACTION TYPES:
     - "income" - Revenue/sales deposits
     - "expense" - Operating expenses
@@ -140,58 +146,57 @@ export async function processBankStatementWithAI(
     - "transfer" - Between own accounts
     - "other" - Doesn't fit above categories
     
+    CHART OF ACCOUNTS CATEGORIES:
+    
     INCOME ACCOUNTS (for revenue/deposits):
-    - "Sales Revenue" - Product sales
-    - "Service Revenue" - Service income
-    - "Interest Income" - Interest earned
-    - "Other Income" - Miscellaneous income
+    ${incomeAccounts}
     
     EXPENSE ACCOUNTS (for operating costs):
-    - "Cost of Goods Sold" - Direct product costs
-    - "Salaries & Wages" - Employee compensation
-    - "Rent" - Office/store rent
-    - "Utilities" - Electricity, gas, water
-    - "Office Supplies" - Consumables
-    - "Advertising & Marketing" - Marketing costs
-    - "Travel" - Business travel
-    - "Meals & Entertainment" - Business meals
-    - "Professional Fees" - Legal, accounting
-    - "Insurance" - Business insurance
-    - "Telephone" - Phone bills
-    - "Internet" - Internet service
-    - "Software Subscriptions" - SaaS, software
-    - "Fuel" - Vehicle fuel
-    - "Vehicle Maintenance" - Auto repairs
-    - "Interest Expense" - Loan interest
-    - "Bank Charges" - Bank fees
-    - "Credit Card Fees" - Processing fees
-    - "Depreciation" - Asset depreciation
-    - "Miscellaneous" - Other expenses
+    ${expenseAccounts}
     
-    ASSET ACCOUNTS (for purchases that create assets):
-    - "Office Equipment" - Computers, printers
-    - "Furniture & Fixtures" - Desks, chairs
-    - "Vehicles" - Company vehicles
-    - "Inventory" - Products for resale
-    - "Prepaid Insurance" - Insurance paid in advance
-    - "Prepaid Rent" - Rent paid in advance
+    ASSET ACCOUNTS (for balance sheet items):
+    ${assetAccounts}
     
     LIABILITY ACCOUNTS (for amounts owed):
-    - "Credit Cards" - Credit card balances
-    - "Loans Payable" - Loan principal
-    - "Sales Tax Payable" - Tax collected
-    - "Payroll Tax Payable" - Payroll taxes owed
+    ${liabilityAccounts}
     
-    RECOGNITION PATTERNS:
-    - Equipment/computer/furniture purchase → transactionType: "asset_purchase", suggestedCategory: "Office Equipment"
-    - Inventory/products for resale → transactionType: "inventory_purchase", suggestedCategory: "Inventory"
-    - Loan payment → transactionType: "loan_payment", needs to be split between principal and interest
-    - Sales with tax → transactionType: "income", note the tax amount separately
-    - Payroll → transactionType: "payroll", suggestedCategory: "Salaries & Wages"
-    - Tax payment to government → transactionType: "tax_payment"
-    - Transfer between accounts → transactionType: "transfer"
+    CATEGORIZATION RULES:
+    - For INCOME (credits/deposits): Use "Sales Revenue" for most business income, "Other Revenue" for interest, dividends, refunds
+    - For EXPENSES (debits):
+      * Rent/lease → "Rent Expense"
+      * Electricity/gas/water/internet/phone → "Utilities Expense"
+      * Restaurant/coffee/meals → "Travel & Meals"
+      * Hotels/flights/taxi/uber → "Travel & Meals"
+      * Office supplies/stationery → "Office Supplies"
+      * Marketing/advertising/ads → "Advertising & Marketing"
+      * Legal/accounting/consulting → "Professional Fees"
+      * Software/subscriptions/SaaS → "Professional Fees"
+      * Insurance premiums → "Insurance Expense"
+      * Employee salaries/wages → "Salaries and Wages"
+      * Bank fees/charges → "Miscellaneous Expense"
+      * Everything else → "Miscellaneous Expense"
     
-    Add a "transactionType" field to each transaction in your response.
+    EXAMPLE for a restaurant expense:
+    {
+      "date": "2024-01-15",
+      "description": "TIM HORTONS #4523",
+      "amount": 25.50,
+      "type": "debit",
+      "balance": 1234.56,
+      "suggestedCategory": "Travel & Meals",
+      "transactionType": "expense"
+    }
+    
+    EXAMPLE for a software subscription:
+    {
+      "date": "2024-01-20",
+      "description": "ADOBE CREATIVE CLOUD",
+      "amount": 79.99,
+      "type": "debit",
+      "balance": 1154.57,
+      "suggestedCategory": "Professional Fees",
+      "transactionType": "expense"
+    }
 
     If you cannot extract valid bank statement data, return:
     {
@@ -283,54 +288,74 @@ export async function processBankStatementWithAI(
 
 /**
  * Categorize a transaction based on its description
+ * Returns exact Chart of Accounts category names
  */
 export function categorizeTransaction(description: string, type: "debit" | "credit"): string {
   const lowerDesc = description.toLowerCase();
 
   if (type === "credit") {
-    // Income categories
-    if (lowerDesc.includes("deposit") || lowerDesc.includes("payment received")) {
-      return "Sales";
+    // Income categories - must match Chart of Accounts exactly
+    if (lowerDesc.includes("deposit") || lowerDesc.includes("payment received") || 
+        lowerDesc.includes("sales") || lowerDesc.includes("revenue")) {
+      return "Sales Revenue";
     }
-    if (lowerDesc.includes("service") || lowerDesc.includes("consulting")) {
-      return "Service Income";
+    if (lowerDesc.includes("interest") || lowerDesc.includes("dividend") || 
+        lowerDesc.includes("refund") || lowerDesc.includes("rebate")) {
+      return "Other Revenue";
     }
-    if (lowerDesc.includes("transfer in") || lowerDesc.includes("e-transfer")) {
-      return "Transfer";
-    }
-    return "Other Income";
+    // Default income category
+    return "Sales Revenue";
   } else {
-    // Expense categories
+    // Expense categories - must match Chart of Accounts exactly
     if (lowerDesc.includes("rent") || lowerDesc.includes("lease")) {
-      return "Rent";
+      return "Rent Expense";
     }
-    if (lowerDesc.includes("hydro") || lowerDesc.includes("electric") || lowerDesc.includes("gas") || lowerDesc.includes("water")) {
-      return "Utilities";
+    if (lowerDesc.includes("hydro") || lowerDesc.includes("electric") || 
+        lowerDesc.includes("gas") || lowerDesc.includes("water") ||
+        lowerDesc.includes("internet") || lowerDesc.includes("phone") ||
+        lowerDesc.includes("telecom") || lowerDesc.includes("bell") ||
+        lowerDesc.includes("rogers") || lowerDesc.includes("telus")) {
+      return "Utilities Expense";
     }
-    if (lowerDesc.includes("insurance")) {
-      return "Insurance";
+    if (lowerDesc.includes("insurance") || lowerDesc.includes("premium")) {
+      return "Insurance Expense";
     }
-    if (lowerDesc.includes("software") || lowerDesc.includes("subscription") || lowerDesc.includes("saas")) {
-      return "Software";
-    }
-    if (lowerDesc.includes("office") || lowerDesc.includes("supplies") || lowerDesc.includes("staples")) {
-      return "Office";
-    }
-    if (lowerDesc.includes("professional") || lowerDesc.includes("legal") || lowerDesc.includes("accounting")) {
+    if (lowerDesc.includes("software") || lowerDesc.includes("subscription") || 
+        lowerDesc.includes("saas") || lowerDesc.includes("adobe") ||
+        lowerDesc.includes("microsoft") || lowerDesc.includes("google workspace") ||
+        lowerDesc.includes("legal") || lowerDesc.includes("accounting") ||
+        lowerDesc.includes("consulting") || lowerDesc.includes("professional")) {
       return "Professional Fees";
     }
-    if (lowerDesc.includes("marketing") || lowerDesc.includes("advertising") || lowerDesc.includes("ads")) {
-      return "Marketing";
+    if (lowerDesc.includes("office") || lowerDesc.includes("supplies") || 
+        lowerDesc.includes("staples") || lowerDesc.includes("stationery")) {
+      return "Office Supplies";
     }
-    if (lowerDesc.includes("meal") || lowerDesc.includes("restaurant") || lowerDesc.includes("food")) {
-      return "Meals";
+    if (lowerDesc.includes("marketing") || lowerDesc.includes("advertising") || 
+        lowerDesc.includes("ads") || lowerDesc.includes("promotion") ||
+        lowerDesc.includes("facebook") || lowerDesc.includes("google ads")) {
+      return "Advertising & Marketing";
     }
-    if (lowerDesc.includes("travel") || lowerDesc.includes("hotel") || lowerDesc.includes("flight")) {
-      return "Travel";
+    if (lowerDesc.includes("meal") || lowerDesc.includes("restaurant") || 
+        lowerDesc.includes("food") || lowerDesc.includes("coffee") ||
+        lowerDesc.includes("lunch") || lowerDesc.includes("dinner") ||
+        lowerDesc.includes("travel") || lowerDesc.includes("hotel") || 
+        lowerDesc.includes("flight") || lowerDesc.includes("taxi") ||
+        lowerDesc.includes("uber") || lowerDesc.includes("lyft")) {
+      return "Travel & Meals";
     }
-    if (lowerDesc.includes("transfer out") || lowerDesc.includes("e-transfer")) {
-      return "Transfer";
+    if (lowerDesc.includes("salary") || lowerDesc.includes("wage") || 
+        lowerDesc.includes("payroll") || lowerDesc.includes("employee")) {
+      return "Salaries and Wages";
     }
-    return "Other Expense";
+    // Default expense category
+    return "Miscellaneous Expense";
   }
+}
+
+/**
+ * Validate that a category name exists in the Chart of Accounts
+ */
+export function isValidChartOfAccountsCategory(categoryName: string): boolean {
+  return CHART_OF_ACCOUNTS.some(account => account.name === categoryName);
 }

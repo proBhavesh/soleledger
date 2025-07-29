@@ -876,46 +876,45 @@ export async function generateBalanceSheetReport(
     };
 
     // Process equity accounts
-    let hasRetainedEarningsAccount = false;
+    let retainedEarningsBalance = 0;
 
     for (const account of equityAccounts) {
       const accountData = accountBalances.get(account.id);
       
       // Check if this is retained earnings account
       if (account.accountCode === ACCOUNT_CODES.RETAINED_EARNINGS || account.name.toLowerCase().includes("retained earnings")) {
-        hasRetainedEarningsAccount = true;
+        // Store the existing retained earnings balance
+        if (accountData) {
+          retainedEarningsBalance = accountData.balance;
+        }
       }
       
       if (accountData && accountData.balance !== 0) {
-        equityLineItems.equity.accounts.push({
-          name: account.name,
-          accountCode: account.accountCode,
-          amount: accountData.balance,
-        });
-        equityLineItems.equity.total += accountData.balance;
-        totalEquity += accountData.balance;
+        // Skip adding retained earnings here - we'll add it with net income included
+        if (account.accountCode !== ACCOUNT_CODES.RETAINED_EARNINGS && !account.name.toLowerCase().includes("retained earnings")) {
+          equityLineItems.equity.accounts.push({
+            name: account.name,
+            accountCode: account.accountCode,
+            amount: accountData.balance,
+          });
+          equityLineItems.equity.total += accountData.balance;
+          totalEquity += accountData.balance;
+        }
       }
     }
 
-    // Always show retained earnings, even if zero
-    if (!hasRetainedEarningsAccount) {
-      equityLineItems.equity.accounts.push({
-        name: "Retained Earnings",
-        accountCode: ACCOUNT_CODES.RETAINED_EARNINGS,
-        amount: 0,
-      });
-    }
-
-    // Add current year earnings as a separate account
+    // Add Retained Earnings with current year net income included
+    // This is the proper accounting treatment - P&L flows to Retained Earnings
+    const totalRetainedEarnings = retainedEarningsBalance + netIncome;
     equityLineItems.equity.accounts.push({
-      name: "Current Year Earnings",
-      accountCode: ACCOUNT_CODES.DRAWINGS_DISTRIBUTIONS,
-      amount: netIncome,
+      name: "Retained Earnings (including current year)",
+      accountCode: ACCOUNT_CODES.RETAINED_EARNINGS,
+      amount: totalRetainedEarnings,
     });
-    equityLineItems.equity.total += netIncome;
-
-    // Add current year earnings to total equity
-    totalEquity += netIncome;
+    equityLineItems.equity.total += totalRetainedEarnings;
+    
+    // Add retained earnings (with net income) to total equity
+    totalEquity += totalRetainedEarnings;
 
     // Build equity structure
     const equity = {

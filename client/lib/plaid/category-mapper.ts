@@ -1,167 +1,155 @@
 /**
  * Maps Plaid's personal finance categories to standard Chart of Accounts categories
  * Based on Plaid's PFC (Personal Finance Category) taxonomy
+ * 
+ * IMPORTANT: All category names MUST match exactly with CHART_OF_ACCOUNTS in
+ * /lib/constants/chart-of-accounts.ts to ensure proper database matching.
  */
 
-// Type definitions for better type safety
+import { CHART_OF_ACCOUNTS } from '@/lib/constants/chart-of-accounts';
+
+// Extract the exact category names from Chart of Accounts for type safety
+type ChartOfAccountCategory = typeof CHART_OF_ACCOUNTS[number]['name'];
+
+// Type definitions for Plaid categories
 type PlaidCategory = {
   primary: string;
   detailed: string;
 };
 
-type ChartOfAccountCategory = 
-  // Income categories
-  | "Sales Revenue"
-  | "Service Revenue"
-  | "Consulting Revenue"
-  | "Interest Income"
-  | "Other Income"
-  // Expense categories
-  | "Advertising & Marketing"
-  | "Office Supplies"
-  | "Professional Fees"
-  | "Insurance"
-  | "Rent"
-  | "Utilities"
-  | "Telephone"
-  | "Internet"
-  | "Software Subscriptions"
-  | "Travel"
-  | "Meals & Entertainment"
-  | "Fuel"
-  | "Vehicle Maintenance"
-  | "Salaries & Wages"
-  | "Interest Expense"
-  | "Bank Charges"
-  | "Credit Card Fees"
-  | "Miscellaneous";
-
 /**
  * Maps Plaid's detailed categories to Chart of Accounts categories
  * Using the detailed category provides more accurate mapping
+ * 
+ * Available Chart of Accounts categories:
+ * Income: Sales Revenue, Other Revenue
+ * Expenses: Cost of Goods Sold (COGS), Salaries and Wages, Rent Expense, 
+ *          Utilities Expense, Office Supplies, Advertising & Marketing,
+ *          Travel & Meals, Professional Fees, Insurance Expense,
+ *          Depreciation Expense, Miscellaneous Expense, Tax Expense
  */
 const PLAID_TO_CHART_OF_ACCOUNTS_MAP: Record<string, ChartOfAccountCategory> = {
   // INCOME mappings
-  "INCOME_WAGES": "Service Revenue",
-  "INCOME_INTEREST_EARNED": "Interest Income",
-  "INCOME_DIVIDENDS": "Other Income",
-  "INCOME_RETIREMENT_PENSION": "Other Income",
-  "INCOME_TAX_REFUND": "Other Income",
-  "INCOME_UNEMPLOYMENT": "Other Income",
-  "INCOME_OTHER_INCOME": "Other Income",
+  "INCOME_WAGES": "Sales Revenue",
+  "INCOME_INTEREST_EARNED": "Other Revenue",
+  "INCOME_DIVIDENDS": "Other Revenue",
+  "INCOME_RETIREMENT_PENSION": "Other Revenue",
+  "INCOME_TAX_REFUND": "Other Revenue",
+  "INCOME_UNEMPLOYMENT": "Other Revenue",
+  "INCOME_OTHER_INCOME": "Other Revenue",
   
-  // BANK_FEES mappings
-  "BANK_FEES_ATM_FEES": "Bank Charges",
-  "BANK_FEES_FOREIGN_TRANSACTION_FEES": "Bank Charges",
-  "BANK_FEES_INSUFFICIENT_FUNDS": "Bank Charges",
-  "BANK_FEES_INTEREST_CHARGE": "Interest Expense",
-  "BANK_FEES_OVERDRAFT_FEES": "Bank Charges",
-  "BANK_FEES_OTHER_BANK_FEES": "Bank Charges",
+  // BANK_FEES mappings - Map to Miscellaneous Expense
+  "BANK_FEES_ATM_FEES": "Miscellaneous Expense",
+  "BANK_FEES_FOREIGN_TRANSACTION_FEES": "Miscellaneous Expense",
+  "BANK_FEES_INSUFFICIENT_FUNDS": "Miscellaneous Expense",
+  "BANK_FEES_INTEREST_CHARGE": "Miscellaneous Expense",
+  "BANK_FEES_OVERDRAFT_FEES": "Miscellaneous Expense",
+  "BANK_FEES_OTHER_BANK_FEES": "Miscellaneous Expense",
   
-  // ENTERTAINMENT mappings
-  "ENTERTAINMENT_CASINOS_AND_GAMBLING": "Meals & Entertainment",
-  "ENTERTAINMENT_MUSIC_AND_AUDIO": "Meals & Entertainment",
-  "ENTERTAINMENT_SPORTING_EVENTS_AMUSEMENT_PARKS_AND_MUSEUMS": "Meals & Entertainment",
-  "ENTERTAINMENT_TV_AND_MOVIES": "Meals & Entertainment",
-  "ENTERTAINMENT_VIDEO_GAMES": "Meals & Entertainment",
-  "ENTERTAINMENT_OTHER_ENTERTAINMENT": "Meals & Entertainment",
+  // ENTERTAINMENT mappings - Map to Travel & Meals
+  "ENTERTAINMENT_CASINOS_AND_GAMBLING": "Travel & Meals",
+  "ENTERTAINMENT_MUSIC_AND_AUDIO": "Travel & Meals",
+  "ENTERTAINMENT_SPORTING_EVENTS_AMUSEMENT_PARKS_AND_MUSEUMS": "Travel & Meals",
+  "ENTERTAINMENT_TV_AND_MOVIES": "Travel & Meals",
+  "ENTERTAINMENT_VIDEO_GAMES": "Travel & Meals",
+  "ENTERTAINMENT_OTHER_ENTERTAINMENT": "Travel & Meals",
   
-  // FOOD_AND_DRINK mappings
-  "FOOD_AND_DRINK_RESTAURANT": "Meals & Entertainment",
-  "FOOD_AND_DRINK_FAST_FOOD": "Meals & Entertainment",
-  "FOOD_AND_DRINK_COFFEE": "Meals & Entertainment",
-  "FOOD_AND_DRINK_TAKEOUT": "Meals & Entertainment",
-  "FOOD_AND_DRINK_ALCOHOL_AND_BARS": "Meals & Entertainment",
-  "FOOD_AND_DRINK_GROCERIES": "Miscellaneous", // Could be office supplies if for office
+  // FOOD_AND_DRINK mappings - Business meals to Travel & Meals
+  "FOOD_AND_DRINK_RESTAURANT": "Travel & Meals",
+  "FOOD_AND_DRINK_FAST_FOOD": "Travel & Meals",
+  "FOOD_AND_DRINK_COFFEE": "Travel & Meals",
+  "FOOD_AND_DRINK_TAKEOUT": "Travel & Meals",
+  "FOOD_AND_DRINK_ALCOHOL_AND_BARS": "Travel & Meals",
+  "FOOD_AND_DRINK_GROCERIES": "Office Supplies", // Office kitchen supplies
   
   // GENERAL_MERCHANDISE mappings
   "GENERAL_MERCHANDISE_BOOKSTORES_AND_NEWSSTANDS": "Office Supplies",
-  "GENERAL_MERCHANDISE_CLOTHING_AND_ACCESSORIES": "Miscellaneous",
+  "GENERAL_MERCHANDISE_CLOTHING_AND_ACCESSORIES": "Miscellaneous Expense",
   "GENERAL_MERCHANDISE_CONVENIENCE_STORES": "Office Supplies",
   "GENERAL_MERCHANDISE_DEPARTMENT_STORES": "Office Supplies",
   "GENERAL_MERCHANDISE_ELECTRONICS": "Office Supplies",
-  "GENERAL_MERCHANDISE_GIFTS_AND_NOVELTIES": "Miscellaneous",
+  "GENERAL_MERCHANDISE_GIFTS_AND_NOVELTIES": "Miscellaneous Expense",
   "GENERAL_MERCHANDISE_OFFICE_SUPPLIES": "Office Supplies",
   "GENERAL_MERCHANDISE_ONLINE_MARKETPLACES": "Office Supplies",
-  "GENERAL_MERCHANDISE_SPORTING_GOODS": "Miscellaneous",
+  "GENERAL_MERCHANDISE_SPORTING_GOODS": "Miscellaneous Expense",
   
   // HOME_IMPROVEMENT mappings
   "HOME_IMPROVEMENT_FURNITURE": "Office Supplies",
   "HOME_IMPROVEMENT_HARDWARE": "Office Supplies",
-  "HOME_IMPROVEMENT_REPAIR_AND_MAINTENANCE": "Miscellaneous",
+  "HOME_IMPROVEMENT_REPAIR_AND_MAINTENANCE": "Miscellaneous Expense",
   
   // LOAN_PAYMENTS mappings
-  "LOAN_PAYMENTS_CAR_PAYMENT": "Vehicle Maintenance",
-  "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT": "Credit Card Fees",
-  "LOAN_PAYMENTS_PERSONAL_LOAN_PAYMENT": "Interest Expense",
-  "LOAN_PAYMENTS_MORTGAGE_PAYMENT": "Rent", // For business premises
-  "LOAN_PAYMENTS_STUDENT_LOAN_PAYMENT": "Miscellaneous",
+  "LOAN_PAYMENTS_CAR_PAYMENT": "Miscellaneous Expense",
+  "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT": "Miscellaneous Expense",
+  "LOAN_PAYMENTS_PERSONAL_LOAN_PAYMENT": "Miscellaneous Expense",
+  "LOAN_PAYMENTS_MORTGAGE_PAYMENT": "Rent Expense", // For business premises
+  "LOAN_PAYMENTS_STUDENT_LOAN_PAYMENT": "Miscellaneous Expense",
   
-  // MEDICAL mappings
-  "MEDICAL_DENTAL_CARE": "Insurance",
-  "MEDICAL_EYE_CARE": "Insurance",
-  "MEDICAL_NURSING_CARE": "Insurance",
-  "MEDICAL_PHARMACIES_AND_SUPPLEMENTS": "Insurance",
-  "MEDICAL_PRIMARY_CARE": "Insurance",
-  "MEDICAL_VETERINARY_SERVICES": "Miscellaneous",
+  // MEDICAL mappings - Map to Insurance Expense
+  "MEDICAL_DENTAL_CARE": "Insurance Expense",
+  "MEDICAL_EYE_CARE": "Insurance Expense",
+  "MEDICAL_NURSING_CARE": "Insurance Expense",
+  "MEDICAL_PHARMACIES_AND_SUPPLEMENTS": "Insurance Expense",
+  "MEDICAL_PRIMARY_CARE": "Insurance Expense",
+  "MEDICAL_VETERINARY_SERVICES": "Miscellaneous Expense",
   
   // PERSONAL_CARE mappings
-  "PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS": "Miscellaneous",
-  "PERSONAL_CARE_HAIR_AND_BEAUTY": "Miscellaneous",
-  "PERSONAL_CARE_LAUNDRY_AND_DRY_CLEANING": "Miscellaneous",
+  "PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS": "Miscellaneous Expense",
+  "PERSONAL_CARE_HAIR_AND_BEAUTY": "Miscellaneous Expense",
+  "PERSONAL_CARE_LAUNDRY_AND_DRY_CLEANING": "Miscellaneous Expense",
   
   // GENERAL_SERVICES mappings
   "GENERAL_SERVICES_ACCOUNTING_AND_FINANCIAL_PLANNING": "Professional Fees",
-  "GENERAL_SERVICES_AUTOMOTIVE": "Vehicle Maintenance",
+  "GENERAL_SERVICES_AUTOMOTIVE": "Miscellaneous Expense",
   "GENERAL_SERVICES_CONSULTING_AND_LEGAL": "Professional Fees",
   "GENERAL_SERVICES_EDUCATION": "Professional Fees",
-  "GENERAL_SERVICES_INSURANCE": "Insurance",
+  "GENERAL_SERVICES_INSURANCE": "Insurance Expense",
   "GENERAL_SERVICES_POSTAGE_AND_SHIPPING": "Office Supplies",
-  "GENERAL_SERVICES_STORAGE": "Rent",
+  "GENERAL_SERVICES_STORAGE": "Rent Expense",
   
   // RENT_AND_UTILITIES mappings
-  "RENT_AND_UTILITIES_GAS_AND_ELECTRICITY": "Utilities",
-  "RENT_AND_UTILITIES_INTERNET_AND_CABLE": "Internet",
-  "RENT_AND_UTILITIES_RENT": "Rent",
-  "RENT_AND_UTILITIES_SEWAGE_AND_WASTE_MANAGEMENT": "Utilities",
-  "RENT_AND_UTILITIES_TELEPHONE": "Telephone",
-  "RENT_AND_UTILITIES_WATER": "Utilities",
+  "RENT_AND_UTILITIES_GAS_AND_ELECTRICITY": "Utilities Expense",
+  "RENT_AND_UTILITIES_INTERNET_AND_CABLE": "Utilities Expense",
+  "RENT_AND_UTILITIES_RENT": "Rent Expense",
+  "RENT_AND_UTILITIES_SEWAGE_AND_WASTE_MANAGEMENT": "Utilities Expense",
+  "RENT_AND_UTILITIES_TELEPHONE": "Utilities Expense",
+  "RENT_AND_UTILITIES_WATER": "Utilities Expense",
   
   // TRAVEL mappings
-  "TRAVEL_FLIGHTS": "Travel",
-  "TRAVEL_GAS_STATIONS": "Fuel",
-  "TRAVEL_HOTELS": "Travel",
-  "TRAVEL_PARKING": "Travel",
-  "TRAVEL_PUBLIC_TRANSIT": "Travel",
-  "TRAVEL_RENTAL_CARS": "Travel",
-  "TRAVEL_TAXIS_AND_RIDE_SHARES": "Travel",
+  "TRAVEL_FLIGHTS": "Travel & Meals",
+  "TRAVEL_GAS_STATIONS": "Travel & Meals",
+  "TRAVEL_HOTELS": "Travel & Meals",
+  "TRAVEL_PARKING": "Travel & Meals",
+  "TRAVEL_PUBLIC_TRANSIT": "Travel & Meals",
+  "TRAVEL_RENTAL_CARS": "Travel & Meals",
+  "TRAVEL_TAXIS_AND_RIDE_SHARES": "Travel & Meals",
   
   // TRANSPORTATION mappings
-  "TRANSPORTATION_BIKES_AND_SCOOTERS": "Vehicle Maintenance",
-  "TRANSPORTATION_GAS_STATIONS": "Fuel",
-  "TRANSPORTATION_PARKING": "Vehicle Maintenance",
-  "TRANSPORTATION_PUBLIC_TRANSIT": "Travel",
-  "TRANSPORTATION_TAXIS_AND_RIDE_SHARES": "Travel",
-  "TRANSPORTATION_TOLLS": "Vehicle Maintenance",
+  "TRANSPORTATION_BIKES_AND_SCOOTERS": "Travel & Meals",
+  "TRANSPORTATION_GAS_STATIONS": "Travel & Meals",
+  "TRANSPORTATION_PARKING": "Travel & Meals",
+  "TRANSPORTATION_PUBLIC_TRANSIT": "Travel & Meals",
+  "TRANSPORTATION_TAXIS_AND_RIDE_SHARES": "Travel & Meals",
+  "TRANSPORTATION_TOLLS": "Travel & Meals",
 };
 
 /**
  * Primary category fallback mappings for when detailed category doesn't match
  */
 const PRIMARY_CATEGORY_FALLBACK_MAP: Record<string, ChartOfAccountCategory> = {
-  "INCOME": "Other Income",
-  "BANK_FEES": "Bank Charges",
-  "ENTERTAINMENT": "Meals & Entertainment",
-  "FOOD_AND_DRINK": "Meals & Entertainment",
+  "INCOME": "Other Revenue",
+  "BANK_FEES": "Miscellaneous Expense",
+  "ENTERTAINMENT": "Travel & Meals",
+  "FOOD_AND_DRINK": "Travel & Meals",
   "GENERAL_MERCHANDISE": "Office Supplies",
-  "HOME_IMPROVEMENT": "Miscellaneous",
-  "LOAN_PAYMENTS": "Interest Expense",
-  "MEDICAL": "Insurance",
-  "PERSONAL_CARE": "Miscellaneous",
+  "HOME_IMPROVEMENT": "Miscellaneous Expense",
+  "LOAN_PAYMENTS": "Miscellaneous Expense",
+  "MEDICAL": "Insurance Expense",
+  "PERSONAL_CARE": "Miscellaneous Expense",
   "GENERAL_SERVICES": "Professional Fees",
-  "RENT_AND_UTILITIES": "Utilities",
-  "TRAVEL": "Travel",
-  "TRANSPORTATION": "Vehicle Maintenance",
+  "RENT_AND_UTILITIES": "Utilities Expense",
+  "TRAVEL": "Travel & Meals",
+  "TRANSPORTATION": "Travel & Meals",
 };
 
 /**
@@ -184,8 +172,8 @@ export function mapPlaidCategoryToChartOfAccounts(
     return primaryMapping;
   }
   
-  // Default to Miscellaneous if no mapping found
-  return "Miscellaneous";
+  // Default to Miscellaneous Expense if no mapping found
+  return "Miscellaneous Expense";
 }
 
 /**
@@ -283,17 +271,20 @@ export function getTransactionTypeFromPlaid(
 /**
  * Maps common merchant names to more specific Chart of Accounts categories
  * This can be used to override the category mapping based on known merchants
+ * 
+ * NOTE: All mapped values must exist in CHART_OF_ACCOUNTS
  */
 export const MERCHANT_OVERRIDES: Record<string, ChartOfAccountCategory> = {
-  // Software and SaaS
-  "GOOGLE": "Software Subscriptions",
-  "AMAZON WEB SERVICES": "Software Subscriptions",
-  "MICROSOFT": "Software Subscriptions",
-  "ADOBE": "Software Subscriptions",
-  "SLACK": "Software Subscriptions",
-  "ZOOM": "Software Subscriptions",
-  "DROPBOX": "Software Subscriptions",
-  "GITHUB": "Software Subscriptions",
+  // Software and SaaS - Map to Professional Fees
+  "GOOGLE": "Professional Fees",
+  "AMAZON WEB SERVICES": "Professional Fees",
+  "MICROSOFT": "Professional Fees",
+  "ADOBE": "Professional Fees",
+  "SLACK": "Professional Fees",
+  "ZOOM": "Professional Fees",
+  "DROPBOX": "Professional Fees",
+  "GITHUB": "Professional Fees",
+  "QUICKBOOKS": "Professional Fees",
   
   // Marketing
   "FACEBOOK": "Advertising & Marketing",
@@ -302,15 +293,24 @@ export const MERCHANT_OVERRIDES: Record<string, ChartOfAccountCategory> = {
   "TWITTER": "Advertising & Marketing",
   
   // Professional Services
-  "QUICKBOOKS": "Professional Fees",
   "H&R BLOCK": "Professional Fees",
   "LEGALZOOM": "Professional Fees",
   
   // Utilities and Communication
-  "BELL": "Telephone",
-  "ROGERS": "Internet",
-  "TELUS": "Telephone",
-  "SHAW": "Internet",
+  "BELL": "Utilities Expense",
+  "ROGERS": "Utilities Expense",
+  "TELUS": "Utilities Expense",
+  "SHAW": "Utilities Expense",
+  
+  // Office Supplies
+  "STAPLES": "Office Supplies",
+  "OFFICE DEPOT": "Office Supplies",
+  
+  // Travel
+  "AIR CANADA": "Travel & Meals",
+  "WESTJET": "Travel & Meals",
+  "UBER": "Travel & Meals",
+  "LYFT": "Travel & Meals",
 };
 
 /**

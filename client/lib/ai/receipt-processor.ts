@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ExtractedReceiptData } from "@/lib/types/documents";
+import { CHART_OF_ACCOUNTS } from "@/lib/constants/chart-of-accounts";
 
 // Schema for receipt data extraction (using existing type)
 export const ReceiptDataSchema = z.object({
@@ -101,6 +102,9 @@ async function processReceiptWithClaude(
   fileUrl: string,
   contentType: "image" | "document"
 ): Promise<ReceiptData> {
+  // Get valid Chart of Accounts names for the prompt
+  const chartAccountNames = CHART_OF_ACCOUNTS.map(acc => `"${acc.name}"`).join(", ");
+  
   const prompt = `
     FIRST: Determine if this ${
       contentType === "image" ? "image" : "PDF"
@@ -143,7 +147,7 @@ async function processReceiptWithClaude(
     - Extract vendor name, total amount, date, tax amount if visible
     - Identify the document type (receipt, invoice, statement, other)
     - List individual items with their amounts if clearly visible
-    - For each item, suggest an appropriate expense category (e.g., "Office Supplies", "Meals", "Software", "Travel", etc.)
+    - For each item, suggest an appropriate expense category from the Chart of Accounts below
     - Analyze if items should be split into separate transactions:
       * Set shouldSplit=true if items are from different expense categories
       * Set shouldSplit=true if the receipt combines different types of purchases
@@ -152,10 +156,29 @@ async function processReceiptWithClaude(
     - For dates, use ISO format (YYYY-MM-DD)
     - If information is unclear or missing, omit those fields entirely
     
-    Common expense categories to consider:
-    - Office Supplies, Equipment, Software, Meals & Entertainment, Travel
-    - Professional Services, Insurance, Utilities, Rent, Marketing
-    - Vehicle Expenses, Bank Fees, Training, Subscriptions
+    CRITICAL: For the "category" field, you MUST use ONLY these exact Chart of Accounts names:
+    ${chartAccountNames}
+    
+    CATEGORIZATION RULES for receipts/invoices:
+    - Restaurant/coffee/meals → "Travel & Meals"
+    - Hotels/flights/taxi/uber → "Travel & Meals"
+    - Office supplies/stationery → "Office Supplies"
+    - Software/subscriptions/SaaS → "Professional Fees"
+    - Legal/accounting/consulting → "Professional Fees"
+    - Marketing/advertising/ads → "Advertising & Marketing"
+    - Insurance premiums → "Insurance Expense"
+    - Rent/lease payments → "Rent Expense"
+    - Electricity/gas/water/internet/phone → "Utilities Expense"
+    - Employee salaries/wages → "Salaries and Wages"
+    - Direct product costs → "Cost of Goods Sold (COGS)"
+    - Everything else → "Miscellaneous Expense"
+    
+    EXAMPLES:
+    - Tim Hortons receipt → category: "Travel & Meals"
+    - Adobe subscription → category: "Professional Fees"
+    - Staples office supplies → category: "Office Supplies"
+    - Facebook ads → category: "Advertising & Marketing"
+    - Bell phone bill → category: "Utilities Expense"
     
     Special cases:
     - If document is unclear/corrupted: confidence = 0.1-0.3

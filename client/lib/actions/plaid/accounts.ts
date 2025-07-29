@@ -22,9 +22,9 @@ interface PlaidTransactionSummary {
 export async function getBankAccounts(businessId?: string) {
   const session = await auth();
   if (!session?.user?.id) {
-    return { 
-      success: false, 
-      error: PLAID_ERROR_MESSAGES.unauthorized 
+    return {
+      success: false,
+      error: PLAID_ERROR_MESSAGES.unauthorized,
     };
   }
 
@@ -32,16 +32,13 @@ export async function getBankAccounts(businessId?: string) {
 
   try {
     let business;
-    
+
     if (businessId) {
       // If businessId is provided, verify user has access to it
       business = await db.business.findFirst({
         where: {
           id: businessId,
-          OR: [
-            { ownerId: userId },
-            { members: { some: { userId } } }
-          ]
+          OR: [{ ownerId: userId }, { members: { some: { userId } } }],
         },
       });
     } else {
@@ -54,9 +51,9 @@ export async function getBankAccounts(businessId?: string) {
     }
 
     if (!business) {
-      return { 
-        success: false, 
-        error: PLAID_ERROR_MESSAGES.noBusinessFound 
+      return {
+        success: false,
+        error: PLAID_ERROR_MESSAGES.noBusinessFound,
       };
     }
 
@@ -76,9 +73,9 @@ export async function getBankAccounts(businessId?: string) {
     };
   } catch (error) {
     console.error("Error getting bank accounts:", error);
-    return { 
-      success: false, 
-      error: PLAID_ERROR_MESSAGES.fetchAccountsFailed 
+    return {
+      success: false,
+      error: PLAID_ERROR_MESSAGES.fetchAccountsFailed,
     };
   }
 }
@@ -100,16 +97,13 @@ export async function getAccountTransactions(
 
   try {
     let business;
-    
+
     if (businessId) {
       // If businessId is provided, verify user has access to it
       business = await db.business.findFirst({
         where: {
           id: businessId,
-          OR: [
-            { ownerId: userId },
-            { members: { some: { userId } } }
-          ]
+          OR: [{ ownerId: userId }, { members: { some: { userId } } }],
         },
       });
     } else {
@@ -214,13 +208,14 @@ export async function refreshBalances(bankAccountId: string) {
     }
 
     // Verify user has access to this business
-    const hasAccess = bankAccountWithBusiness.business.ownerId === userId ||
-      await db.businessMember.findFirst({
+    const hasAccess =
+      bankAccountWithBusiness.business.ownerId === userId ||
+      (await db.businessMember.findFirst({
         where: {
           businessId: bankAccountWithBusiness.businessId,
           userId,
         },
-      });
+      }));
 
     if (!hasAccess) {
       return {
@@ -320,13 +315,14 @@ export async function getAccountBalanceHistory(
     }
 
     // Verify user has access to this business
-    const hasAccess = accountWithBusiness.business.ownerId === userId ||
-      await db.businessMember.findFirst({
+    const hasAccess =
+      accountWithBusiness.business.ownerId === userId ||
+      (await db.businessMember.findFirst({
         where: {
           businessId: accountWithBusiness.businessId,
           userId,
         },
-      });
+      }));
 
     if (!hasAccess) {
       return {
