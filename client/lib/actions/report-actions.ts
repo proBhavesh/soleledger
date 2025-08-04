@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { z } from "zod";
 import { saveGeneratedReport } from "./report-persistence-actions";
 import { buildUserBusinessWhere } from "@/lib/utils/permission-helpers";
+import { getAllBankAccountsWithBalances } from "@/lib/services/bank-balance-service";
 import {
   reportRequestSchema,
   type ReportRequest,
@@ -602,20 +603,8 @@ export async function generateBalanceSheetReport(
       orderBy: [{ sortOrder: "asc" }, { accountCode: "asc" }],
     });
 
-    // Get all bank accounts with their current balances
-    const bankAccounts = await db.bankAccount.findMany({
-      where: {
-        businessId: business.id,
-      },
-      select: {
-        id: true,
-        name: true,
-        accountType: true,
-        balance: true,
-        isManual: true,
-        institution: true,
-      },
-    });
+    // Get all bank accounts with their properly calculated balances
+    const bankAccountsWithBalances = await getAllBankAccountsWithBalances(business.id);
 
     // Calculate balances for each account using journal entries
     const accountBalances = new Map<string, {
@@ -678,9 +667,9 @@ export async function generateBalanceSheetReport(
     };
 
     // First, add bank accounts to Cash and Bank line item
-    for (const bankAccount of bankAccounts) {
+    for (const bankAccount of bankAccountsWithBalances) {
       if (bankAccount.accountType === "CHECKING" || bankAccount.accountType === "SAVINGS") {
-        const amount = bankAccount.balance;
+        const amount = bankAccount.calculatedBalance;
         if (amount !== 0) {
           lineItemGroups.cashAndBank.accounts.push({
             name: `${bankAccount.name} (${bankAccount.institution || 'Bank Account'})`,
@@ -693,8 +682,20 @@ export async function generateBalanceSheetReport(
       }
     }
 
+    // Get bank account Chart of Accounts IDs to exclude from double-counting
+    const bankAccountChartIds = new Set(
+      bankAccountsWithBalances
+        .filter(ba => ba.chartOfAccountsId)
+        .map(ba => ba.chartOfAccountsId)
+    );
+
     // Then, add Chart of Accounts asset accounts to appropriate line items
+    // Skip accounts that belong to bank accounts (to avoid double-counting)
     for (const account of assetAccounts) {
+      if (bankAccountChartIds.has(account.id)) {
+        continue; // Skip bank account Chart of Accounts entries
+      }
+      
       const accountData = accountBalances.get(account.id);
       if (accountData && accountData.balance !== 0) {
         const item = {
@@ -774,10 +775,10 @@ export async function generateBalanceSheetReport(
     };
 
     // First, add bank liability accounts
-    for (const bankAccount of bankAccounts) {
+    for (const bankAccount of bankAccountsWithBalances) {
       // For liability accounts, negative balance means we owe money
       // Display as positive on the Balance Sheet
-      const amount = -bankAccount.balance;
+      const amount = -bankAccount.calculatedBalance;
       
       if (bankAccount.accountType === "CREDIT_CARD" && amount > 0) {
         liabilityLineItems.creditCardsPayable.accounts.push({
@@ -799,7 +800,12 @@ export async function generateBalanceSheetReport(
     }
 
     // Then, add Chart of Accounts liability accounts
+    // Skip accounts that belong to bank accounts (to avoid double-counting)
     for (const account of liabilityAccounts) {
+      if (bankAccountChartIds.has(account.id)) {
+        continue; // Skip bank account Chart of Accounts entries
+      }
+      
       const accountData = accountBalances.get(account.id);
       if (accountData && accountData.balance !== 0) {
         const item = {
@@ -1189,13 +1195,11 @@ export async function generateCashFlowReport(
     }
 
     // Get bank account balances at start and end of period
-    const bankAccounts = await db.bankAccount.findMany({
-      where: { businessId: business.id },
-    });
+    const bankAccountsWithBalances = await getAllBankAccountsWithBalances(business.id);
 
-    // Calculate beginning and ending cash
-    const beginningCash = bankAccounts.reduce(
-      (sum, account) => sum + (account.balance || 0),
+    // Calculate beginning and ending cash (using calculated balances)
+    const beginningCash = bankAccountsWithBalances.reduce(
+      (sum, account) => sum + (account.calculatedBalance || 0),
       0
     );
 

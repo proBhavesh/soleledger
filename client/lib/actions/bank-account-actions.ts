@@ -13,51 +13,10 @@ import {
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { checkBankAccountLimit } from "@/lib/services/usage-tracking";
-import type { BankAccount } from "@/generated/prisma";
 import { createOpeningBalanceJournalEntry, createBalanceAdjustmentJournalEntry } from "@/lib/actions/opening-balance-actions";
 import { createBankAccountChartEntry } from "@/lib/actions/chart-of-accounts-actions";
+import { getAllBankAccountsWithBalances, getBankAccountWithBalance, type BankAccountWithBalance } from "@/lib/services/bank-balance-service";
 
-/**
- * Calculate the actual balance of a bank account from its journal entries.
- * 
- * This function implements proper double-entry bookkeeping rules:
- * - For ASSET accounts (checking, savings): Debits increase balance, Credits decrease
- * - For LIABILITY accounts (credit cards): Credits increase balance, Debits decrease
- * 
- * @param chartOfAccountsId - The Chart of Accounts ID linked to the bank account
- * @param accountType - The type of bank account (determines if it's an asset or liability)
- * @returns The calculated balance based on all journal entries
- */
-export async function calculateBankAccountBalance(
-  chartOfAccountsId: string,
-  accountType: string
-): Promise<number> {
-  const journalEntries = await db.journalEntry.groupBy({
-    by: ['accountId'],
-    where: {
-      accountId: chartOfAccountsId,
-    },
-    _sum: {
-      debitAmount: true,
-      creditAmount: true,
-    },
-  });
-
-  if (journalEntries.length === 0) {
-    return 0;
-  }
-
-  const totals = journalEntries[0]._sum;
-  const totalDebits = totals.debitAmount || 0;
-  const totalCredits = totals.creditAmount || 0;
-
-  // For ASSET accounts (checking, savings): Debits increase, Credits decrease
-  // For LIABILITY accounts (credit cards): Credits increase, Debits decrease
-  const isLiability = accountType === 'CREDIT_CARD';
-  return isLiability 
-    ? totalCredits - totalDebits 
-    : totalDebits - totalCredits;
-}
 
 /**
  * Creates a manual bank account for financial institutions not supported by Plaid.
@@ -178,16 +137,21 @@ export async function createManualBankAccount(
 }
 
 /**
- * Updates the balance of a manual bank account.
+ * Updates the balance of a manual bank account by creating balance adjustment journal entries.
  * Only works for manual accounts, not Plaid-connected accounts.
+ * 
+ * IMPORTANT: For manual accounts, balance is calculated from journal entries, not stored in the database.
+ * This function creates the necessary journal entries to adjust the calculated balance.
  * 
  * @param data - The update data
  * @param data.bankAccountId - ID of the bank account to update
- * @param data.balance - New balance value
+ * @param data.balance - New balance value (will create adjustment entries to reach this balance)
  * 
  * @returns Promise resolving to success/error status and updated account data
  * 
  * @throws Will return error if account not found, not manual, or user unauthorized
+ * 
+ * @deprecated Consider using specific transaction types instead of balance adjustments
  */
 export async function updateManualBalance(
   data: z.infer<typeof updateManualBalanceSchema>
@@ -216,17 +180,24 @@ export async function updateManualBalance(
       return { success: false, error: BANK_ACCOUNT_ERROR_MESSAGES.notManual };
     }
 
-    // Store the old balance for journal entry creation
-    const oldBalance = bankAccount.balance;
+    // Get the current calculated balance using our balance service
+    const bankAccountWithBalance = await getBankAccountWithBalance(validatedData.bankAccountId);
+    if (!bankAccountWithBalance) {
+      return { success: false, error: "Failed to get current balance" };
+    }
+    
+    const oldBalance = bankAccountWithBalance.calculatedBalance;
     const newBalance = validatedData.balance;
 
-    // Update the balance
+    // For manual accounts, we don't update the balance field in the database
+    // Instead, we only create journal entries to adjust the calculated balance
+    // Update only the lastManualUpdate timestamp
     const updatedAccount = await db.bankAccount.update({
       where: {
         id: validatedData.bankAccountId,
       },
       data: {
-        balance: newBalance,
+        // Don't update balance field - it's calculated from journal entries
         lastManualUpdate: new Date(),
       },
       select: {
@@ -251,8 +222,7 @@ export async function updateManualBalance(
 
       if (!journalResult.success) {
         console.error("Failed to create balance adjustment journal entry:", journalResult.error);
-        // Note: We don't rollback the balance update here as it's already committed
-        // In production, you might want to use a transaction to ensure atomicity
+        return { success: false, error: "Failed to create balance adjustment" };
       }
     }
 
@@ -260,13 +230,14 @@ export async function updateManualBalance(
     revalidatePath("/dashboard/bank-accounts");
     revalidatePath("/dashboard");
 
+    // Return the new calculated balance (after adjustment)
     return {
       success: true,
       data: {
         id: updatedAccount.id,
         name: updatedAccount.name,
         accountType: updatedAccount.accountType,
-        balance: updatedAccount.balance,
+        balance: newBalance, // Return the new balance that was set via journal entries
         institution: updatedAccount.institution!, // Manual accounts always have institution
       },
     };
@@ -342,15 +313,15 @@ export async function deleteManualBankAccount(
 }
 
 /**
- * Retrieves all bank accounts for the current business.
- * Includes both manual and Plaid-connected accounts.
+ * Retrieves all bank accounts for the current business with proper balances.
  * 
- * @returns Promise resolving to array of bank accounts with transaction counts
- * Orders results by: Plaid accounts first, then by type, then by name
+ * - Plaid accounts: Shows API-synced balance (authoritative source)
+ * - Manual accounts: Shows balance calculated from journal entries
  * 
+ * @returns Promise resolving to array of bank accounts with calculated balances
  * @throws Will return error if user unauthorized or no business selected
  */
-export async function getBankAccountsForBusiness(): Promise<BankAccountActionResponse<Array<BankAccount & { _count: { transactions: number }, calculatedBalance?: number }>>> {
+export async function getBankAccountsForBusiness(): Promise<BankAccountActionResponse<BankAccountWithBalance[]>> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -362,49 +333,12 @@ export async function getBankAccountsForBusiness(): Promise<BankAccountActionRes
       return { success: false, error: BANK_ACCOUNT_ERROR_MESSAGES.noBusinessSelected };
     }
 
-    const bankAccounts = await db.bankAccount.findMany({
-      where: {
-        businessId,
-      },
-      orderBy: [
-        { isManual: "asc" }, // Plaid accounts first
-        { accountType: "asc" },
-        { name: "asc" },
-      ],
-      include: {
-        _count: {
-          select: { transactions: true },
-        },
-        chartOfAccounts: true,
-      },
-    });
-
-    // Calculate actual balances from journal entries for accounts with Chart of Accounts mapping
-    const accountsWithCalculatedBalances = await Promise.all(
-      bankAccounts.map(async (account) => {
-        if (account.chartOfAccountsId) {
-          // Calculate balance from journal entries
-          const calculatedBalance = await calculateBankAccountBalance(
-            account.chartOfAccountsId,
-            account.accountType
-          );
-
-          return {
-            ...account,
-            calculatedBalance,
-            // Use calculated balance as the primary balance if available
-            balance: calculatedBalance,
-          };
-        }
-        
-        // Return account as-is if no Chart of Accounts mapping
-        return account;
-      })
-    );
+    // Use the centralized service to get accounts with proper balances
+    const accountsWithBalances = await getAllBankAccountsWithBalances(businessId);
 
     return {
       success: true,
-      data: accountsWithCalculatedBalances,
+      data: accountsWithBalances,
     };
   } catch (error) {
     console.error("Error fetching bank accounts:", error);
@@ -413,14 +347,17 @@ export async function getBankAccountsForBusiness(): Promise<BankAccountActionRes
 }
 
 /**
- * Get a single bank account with its calculated balance from journal entries
+ * Get a single bank account with its proper balance.
+ * 
+ * - Plaid accounts: Returns API-synced balance
+ * - Manual accounts: Returns balance calculated from journal entries
  * 
  * @param bankAccountId - The ID of the bank account to fetch
  * @returns Bank account with calculated balance or error
  */
-export async function getBankAccountWithBalance(
+export async function getSingleBankAccountWithBalance(
   bankAccountId: string
-): Promise<BankAccountActionResponse<BankAccount & { calculatedBalance?: number }>> {
+): Promise<BankAccountActionResponse<BankAccountWithBalance | null>> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -432,13 +369,11 @@ export async function getBankAccountWithBalance(
       return { success: false, error: BANK_ACCOUNT_ERROR_MESSAGES.noBusinessSelected };
     }
 
+    // Verify the account belongs to the business
     const bankAccount = await db.bankAccount.findFirst({
       where: {
         id: bankAccountId,
         businessId,
-      },
-      include: {
-        chartOfAccounts: true,
       },
     });
 
@@ -446,26 +381,16 @@ export async function getBankAccountWithBalance(
       return { success: false, error: BANK_ACCOUNT_ERROR_MESSAGES.notFound };
     }
 
-    // Calculate balance from journal entries if Chart of Accounts is linked
-    if (bankAccount.chartOfAccountsId) {
-      const calculatedBalance = await calculateBankAccountBalance(
-        bankAccount.chartOfAccountsId,
-        bankAccount.accountType
-      );
+    // Use the centralized service to get the account with proper balance
+    const accountWithBalance = await getBankAccountWithBalance(bankAccountId);
 
-      return {
-        success: true,
-        data: {
-          ...bankAccount,
-          calculatedBalance,
-          balance: calculatedBalance, // Override with calculated balance
-        },
-      };
+    if (!accountWithBalance) {
+      return { success: false, error: BANK_ACCOUNT_ERROR_MESSAGES.notFound };
     }
 
     return {
       success: true,
-      data: bankAccount,
+      data: accountWithBalance,
     };
   } catch (error) {
     console.error("Error fetching bank account with balance:", error);

@@ -88,3 +88,45 @@ export const BANK_ACCOUNT_ERROR_MESSAGES = {
   invalidBalance: "Invalid balance amount",
   unexpectedError: "An unexpected error occurred. Please try again later.",
 } as const;
+
+/**
+ * Extended bank account type that includes calculated balance information
+ * Used by the centralized balance service to ensure proper balance calculation
+ * 
+ * @property calculatedBalance - The actual balance (from API for Plaid, from journal entries for manual)
+ * @property balanceSource - Indicates whether balance is from API or calculated
+ * @property lastCalculated - When the balance was last calculated (for manual accounts)
+ */
+export interface BankAccountWithCalculatedBalance {
+  id: string;
+  businessId: string;
+  userId: string;
+  name: string;
+  accountNumber?: string | null;
+  routingNumber?: string | null;
+  institution?: string | null;
+  accountType: BankAccountType;
+  balance: number;
+  currency: string;
+  isManual: boolean;
+  lastManualUpdate?: Date | null;
+  plaidItemId?: string | null;
+  plaidAccessToken?: string | null;
+  lastSync?: Date | null;
+  chartOfAccountsId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  calculatedBalance: number;
+  balanceSource: 'api' | 'calculated';
+  lastCalculated?: Date;
+  previousBalance?: number;
+  _count?: {
+    transactions: number;
+  };
+  chartOfAccounts?: {
+    id: string;
+    accountCode: string;
+    name: string;
+    accountType: string;
+  };
+}

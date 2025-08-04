@@ -2,6 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getAllBankAccountsWithBalances } from "@/lib/services/bank-balance-service";
 
 /**
  * Gets the financial summary for the dashboard
@@ -61,19 +62,15 @@ export async function getFinancialSummary(businessId?: string) {
     };
   }
 
-  // Get bank accounts
-  const accounts = await db.bankAccount.findMany({
-    where: {
-      businessId: business.id,
-    },
-  });
+  // Get bank accounts with proper balance calculation
+  const accounts = await getAllBankAccountsWithBalances(business.id);
 
   // Check if has connected accounts
   const hasConnectedAccounts = accounts.length > 0;
 
-  // Calculate total balance
+  // Calculate total balance using calculated balances
   const totalBalance = accounts.reduce(
-    (sum, account) => sum + (account.balance || 0),
+    (sum, account) => sum + (account.calculatedBalance || 0),
     0
   );
 

@@ -8,6 +8,7 @@ import { PlaidErrorResponse } from "@/lib/types/plaid";
 import { revalidatePath } from "next/cache";
 import { AxiosError } from "axios";
 import { PLAID_ERROR_MESSAGES } from "@/lib/types/plaid-actions";
+import { getAllBankAccountsWithBalances, type BankAccountWithBalance } from "@/lib/services/bank-balance-service";
 
 // Define a simple transaction type for calculate balance history
 interface PlaidTransactionSummary {
@@ -17,9 +18,16 @@ interface PlaidTransactionSummary {
 }
 
 /**
- * Gets all bank accounts for the current user's active business
+ * Gets all bank accounts for the current user's active business with proper balances
+ * 
+ * - Plaid accounts: Returns API-synced balance
+ * - Manual accounts: Returns balance calculated from journal entries
  */
-export async function getBankAccounts(businessId?: string) {
+export async function getBankAccounts(businessId?: string): Promise<{
+  success: boolean;
+  accounts?: BankAccountWithBalance[];
+  error?: string;
+}> {
   const session = await auth();
   if (!session?.user?.id) {
     return {
@@ -57,19 +65,12 @@ export async function getBankAccounts(businessId?: string) {
       };
     }
 
-    // Get bank accounts for the business
-    const bankAccounts = await db.bankAccount.findMany({
-      where: {
-        businessId: business.id,
-      },
-      orderBy: {
-        updatedAt: "desc",
-      },
-    });
+    // Get bank accounts with proper balance calculation
+    const accountsWithBalances = await getAllBankAccountsWithBalances(business.id);
 
     return {
       success: true,
-      accounts: bankAccounts,
+      accounts: accountsWithBalances,
     };
   } catch (error) {
     console.error("Error getting bank accounts:", error);

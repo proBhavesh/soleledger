@@ -334,7 +334,9 @@ export default function DashboardPage() {
                 id: account.id,
                 name: account.name,
                 institution: account.institution,
-                balance: account.balance,
+                balance: 'calculatedBalance' in account && typeof account.calculatedBalance === 'number' 
+                  ? account.calculatedBalance 
+                  : account.balance,
                 currency: account.currency,
                 businessId: account.businessId,
                 lastSync: account.lastSync,

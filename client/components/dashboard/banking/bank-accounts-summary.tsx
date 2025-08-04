@@ -247,9 +247,12 @@ export function BankAccountsSummary({
       <CardContent className="p-0">
         <div className="space-y-2 max-h-[400px] overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
           {accounts.map((account) => {
-            // Safe access to balance values with proper type checking
-            const currentBalance =
-              typeof account.balance === "number" ? account.balance : 0;
+            // Use calculatedBalance if available (from our balance service), otherwise fall back to balance
+            const currentBalance = 
+              'calculatedBalance' in account && typeof account.calculatedBalance === "number"
+                ? account.calculatedBalance
+                : typeof account.balance === "number" ? account.balance : 0;
+            
             const previousBalance =
               account.previousBalance !== undefined &&
               typeof account.previousBalance === "number"
@@ -324,6 +327,12 @@ export function BankAccountsSummary({
                   </div>
 
                   <div className="flex flex-col items-end">
+                    {/* Show balance source for transparency */}
+                    {'balanceSource' in account && account.isManual && (
+                      <div className="text-xs text-muted-foreground mb-1">
+                        {account.balanceSource === 'calculated' ? 'Calculated from transactions' : 'Bank reported'}
+                      </div>
+                    )}
                     {hasBalanceIncreased && (
                       <div className="flex items-center text-sm text-emerald-500">
                         <TrendingUp className="mr-1 h-4 w-4" />
