@@ -48,12 +48,19 @@ export async function getReconciliationSummary(
     const defaultEndDate = endDate || new Date();
 
     // Get all transactions in the date range
+    // Exclude transactions that are already reconciled via bank import
     const transactions = await db.transaction.findMany({
       where: {
         businessId: business.id,
         date: {
           gte: defaultStartDate,
           lte: defaultEndDate,
+        },
+        // Exclude transactions that don't need reconciliation (e.g., bank transfers, opening balances)
+        NOT: {
+          description: {
+            in: ["Opening Balance", "Balance Adjustment"],
+          },
         },
       },
       include: {
@@ -144,6 +151,16 @@ export async function getUnmatchedTransactions(
           { reconciliation: { status: "UNMATCHED" } },
           { reconciliation: { status: "PENDING_REVIEW" } },
         ],
+        // Exclude transactions that don't need reconciliation
+        NOT: {
+          description: {
+            in: ["Opening Balance", "Balance Adjustment"],
+          },
+        },
+        // Only include expense and income transactions that might need document matching
+        type: {
+          in: ["EXPENSE", "INCOME"],
+        },
       },
       include: {
         reconciliation: true,
@@ -169,6 +186,16 @@ export async function getUnmatchedTransactions(
           { reconciliation: { status: "UNMATCHED" } },
           { reconciliation: { status: "PENDING_REVIEW" } },
         ],
+        // Exclude transactions that don't need reconciliation
+        NOT: {
+          description: {
+            in: ["Opening Balance", "Balance Adjustment"],
+          },
+        },
+        // Only include expense and income transactions that might need document matching
+        type: {
+          in: ["EXPENSE", "INCOME"],
+        },
       },
     });
 

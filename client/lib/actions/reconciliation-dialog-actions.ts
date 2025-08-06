@@ -65,7 +65,7 @@ export async function processReconciliationAction(
 
     switch (validatedAction.type) {
       case "match":
-        return await handleMatchAction(document.id, validatedAction.transactionId);
+        return await handleMatchAction(document.id, validatedAction.transactionId, session.user.id);
 
       case "skip":
         // Just mark the document as reviewed
@@ -92,7 +92,8 @@ export async function processReconciliationAction(
  */
 async function handleMatchAction(
   documentId: string,
-  transactionId: string
+  transactionId: string,
+  userId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Check if match already exists
@@ -146,13 +147,13 @@ async function handleMatchAction(
         status: "MANUALLY_MATCHED",
         documentId,
         reviewedAt: new Date(),
-        reviewedBy: "user",
+        reviewedBy: userId,
       },
       update: {
         status: "MANUALLY_MATCHED",
         documentId,
         reviewedAt: new Date(),
-        reviewedBy: "user",
+        reviewedBy: userId,
       },
     });
 

@@ -63,7 +63,7 @@ export function ReconciliationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-3xl max-h-[90vh] w-[95vw] sm:w-full flex flex-col">
         <DialogHeader>
           <DialogTitle>Match Receipt to Transaction</DialogTitle>
           <DialogDescription>
@@ -71,7 +71,7 @@ export function ReconciliationDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-1">
+        <ScrollArea className="flex-1 px-1 overflow-x-hidden">
           <div className="space-y-6">
             {/* Document Details */}
             <Card>
@@ -82,28 +82,28 @@ export function ReconciliationDialog({
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Vendor</span>
-                  <span className="font-medium">{extractedData.vendor || "Unknown"}</span>
+                <div className="flex justify-between items-start gap-2">
+                  <span className="text-sm text-muted-foreground shrink-0">Vendor</span>
+                  <span className="font-medium text-right break-words">{extractedData.vendor || "Unknown"}</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Date</span>
-                  <span className="font-medium">
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-sm text-muted-foreground shrink-0">Date</span>
+                  <span className="font-medium text-right">
                     {extractedData.date ? format(new Date(extractedData.date), "MMM d, yyyy") : "Unknown"}
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Total Amount</span>
-                  <span className="font-medium">{formatCurrency(extractedData.amount || 0)}</span>
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-sm text-muted-foreground shrink-0">Total Amount</span>
+                  <span className="font-medium text-right">{formatCurrency(extractedData.amount || 0)}</span>
                 </div>
                 {extractedData.tax && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Tax</span>
-                    <span className="font-medium">{formatCurrency(extractedData.tax)}</span>
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-sm text-muted-foreground shrink-0">Tax</span>
+                    <span className="font-medium text-right">{formatCurrency(extractedData.tax)}</span>
                   </div>
                 )}
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Confidence</span>
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-sm text-muted-foreground shrink-0">Confidence</span>
                   <Badge variant={extractedData.confidence > 0.7 ? "default" : "secondary"}>
                     {Math.round(extractedData.confidence * 100)}%
                   </Badge>
@@ -224,8 +224,13 @@ export function ReconciliationDialog({
           </div>
         </ScrollArea>
 
-        <DialogFooter className="mt-6">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+        <DialogFooter className="mt-6 flex flex-col-reverse sm:flex-row gap-2 sm:gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => onOpenChange(false)} 
+            disabled={isLoading}
+            className="w-full sm:w-auto"
+          >
             Cancel
           </Button>
           <Button
@@ -234,6 +239,7 @@ export function ReconciliationDialog({
               isLoading ||
               (selectedAction === "match" && !selectedTransactionId)
             }
+            className="w-full sm:w-auto"
           >
             {isLoading ? "Processing..." : "Confirm"}
           </Button>

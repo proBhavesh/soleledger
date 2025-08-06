@@ -56,7 +56,18 @@ export async function getMonthlyCashFlow(businessId?: string): Promise<MonthlyFl
   }
 
   if (!business) {
-    return [];
+    // Return empty data for 6 months so the chart still shows structure
+    const emptyData: MonthlyFlow[] = [];
+    const currentDate = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const monthDate = subMonths(currentDate, i);
+      emptyData.push({
+        month: format(monthDate, "MMM"),
+        income: 0,
+        expenses: 0,
+      });
+    }
+    return emptyData;
   }
 
   // Get data for the last 6 months
@@ -76,23 +87,25 @@ export async function getMonthlyCashFlow(businessId?: string): Promise<MonthlyFl
           gte: startDate,
           lte: endDate,
         },
-        // Exclude recurring transaction placeholders
-        reference: {
-          not: {
-            startsWith: "recurring-",
+        // Exclude system transactions
+        NOT: {
+          description: {
+            in: ["Opening Balance", "Balance Adjustment"],
           },
         },
       },
     });
 
     // Calculate totals
+    // Income transactions are positive amounts
     const income = transactions
       .filter((t) => t.type === "INCOME")
-      .reduce((sum, t) => sum + t.amount, 0);
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
+    // Expense transactions might be stored as negative, convert to positive for display
     const expenses = transactions
       .filter((t) => t.type === "EXPENSE")
-      .reduce((sum, t) => sum + t.amount, 0);
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
     monthlyData.push({
       month: format(monthDate, "MMM"),

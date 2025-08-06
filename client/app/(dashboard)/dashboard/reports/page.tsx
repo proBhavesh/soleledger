@@ -30,6 +30,7 @@ import {
   CheckCircle,
   Clock,
   FileText,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -56,8 +57,19 @@ import {
   startOfYear,
   endOfYear,
 } from "date-fns";
+import {
+  exportProfitLossReportToPDF,
+  exportBalanceSheetToPDF,
+  exportCashFlowReportToPDF,
+  exportExpenseCategoriesReportToPDF,
+  exportAllReportsToPDF,
+  downloadPDF,
+} from "@/lib/services/pdf-export-service";
+import { useBusinessContext } from "@/lib/contexts/business-context";
+import type { jsPDF } from "jspdf";
 
 export default function ReportsPage() {
+  const { selectedBusiness } = useBusinessContext();
   const [selectedPeriod, setSelectedPeriod] = useState("month");
   const [isGenerating, setIsGenerating] = useState(false);
   const [profitLossData, setProfitLossData] = useState<ProfitLossData | null>(
@@ -245,12 +257,110 @@ export default function ReportsPage() {
     }
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | string) => {
     return new Intl.DateTimeFormat("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
     }).format(new Date(date));
+  };
+
+  // PDF Export functions
+  const exportCurrentReportToPDF = () => {
+    try {
+      const exportOptions = {
+        businessName: selectedBusiness?.name || 'Business Report',
+        period: selectedPeriod === 'month' ? 'This Month' : 
+                selectedPeriod === 'quarter' ? 'This Quarter' : 
+                selectedPeriod === 'year' ? 'This Year' : 'This Week',
+        generatedDate: new Date()
+      };
+
+      let doc: jsPDF | undefined;
+      let filename = '';
+
+      switch (activeTab) {
+        case 'profit-loss':
+          if (!profitLossData) {
+            toast.error("No P&L data to export");
+            return;
+          }
+          doc = exportProfitLossReportToPDF(profitLossData, exportOptions);
+          filename = `profit-loss-${new Date().toISOString().split('T')[0]}.pdf`;
+          break;
+
+        case 'balance-sheet':
+          if (!balanceSheetData) {
+            toast.error("No balance sheet data to export");
+            return;
+          }
+          doc = exportBalanceSheetToPDF(balanceSheetData, exportOptions);
+          filename = `balance-sheet-${new Date().toISOString().split('T')[0]}.pdf`;
+          break;
+
+        case 'cash-flow':
+          if (!cashFlowData) {
+            toast.error("No cash flow data to export");
+            return;
+          }
+          doc = exportCashFlowReportToPDF(cashFlowData, exportOptions);
+          filename = `cash-flow-${new Date().toISOString().split('T')[0]}.pdf`;
+          break;
+
+        case 'expenses':
+          if (!expenseData) {
+            toast.error("No expense data to export");
+            return;
+          }
+          doc = exportExpenseCategoriesReportToPDF(expenseData, exportOptions);
+          filename = `expense-categories-${new Date().toISOString().split('T')[0]}.pdf`;
+          break;
+
+        default:
+          toast.error("Please select a report to export");
+          return;
+      }
+
+      if (doc) {
+        downloadPDF(doc, filename);
+        toast.success("Report exported successfully");
+      }
+    } catch (error) {
+      console.error("Failed to export PDF:", error);
+      toast.error("Failed to export report");
+    }
+  };
+
+  const handleExportAllReportsToPDF = () => {
+    try {
+      if (!profitLossData && !balanceSheetData && !cashFlowData && !expenseData) {
+        toast.error("No reports to export");
+        return;
+      }
+
+      const doc = exportAllReportsToPDF(
+        {
+          profitLoss: profitLossData || undefined,
+          balanceSheet: balanceSheetData || undefined,
+          cashFlow: cashFlowData || undefined,
+          expenseCategories: expenseData || undefined,
+        },
+        {
+          businessName: selectedBusiness?.name || 'Business Report',
+          period: selectedPeriod === 'month' ? 'This Month' : 
+                  selectedPeriod === 'quarter' ? 'This Quarter' : 
+                  selectedPeriod === 'year' ? 'This Year' : 'This Week',
+          generatedDate: new Date()
+        }
+      );
+
+      const filename = `all-reports-${new Date().toISOString().split('T')[0]}.pdf`;
+      downloadPDF(doc, filename);
+      toast.success("All reports exported successfully");
+    } catch (error) {
+      console.error("Failed to export all PDFs:", error);
+      toast.error("Failed to export all reports");
+    }
   };
 
   // Load latest reports on mount
@@ -371,6 +481,27 @@ export default function ReportsPage() {
             )}
             Generate Reports
           </Button>
+          {(profitLossData || balanceSheetData || cashFlowData || expenseData) && (
+            <>
+              <Button 
+                onClick={exportCurrentReportToPDF} 
+                variant="outline"
+                disabled={activeTab === "reconciliation" || activeTab === "history"}
+                title="Export current report to PDF"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export PDF
+              </Button>
+              <Button 
+                onClick={handleExportAllReportsToPDF} 
+                variant="outline"
+                title="Export all reports to PDF"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export All
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -574,7 +705,26 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
           ) : profitLossData ? (
-            <div className="grid gap-4 md:grid-cols-2">
+            <>
+              <div className="flex justify-end">
+                <Button
+                  onClick={() => {
+                    const doc = exportProfitLossReportToPDF(profitLossData, {
+                      businessName: selectedBusiness?.name || 'Business Report',
+                      period: profitLossData.period,
+                      generatedDate: new Date()
+                    });
+                    downloadPDF(doc, `profit-loss-${new Date().toISOString().split('T')[0]}.pdf`);
+                    toast.success("P&L report exported");
+                  }}
+                  variant="outline"
+                  size="sm"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export P&L to PDF
+                </Button>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
               <Card>
                 <CardHeader>
                   <CardTitle>Income by Category</CardTitle>
@@ -717,6 +867,7 @@ export default function ReportsPage() {
                 </CardContent>
               </Card>
             </div>
+            </>
           ) : (
             <Card>
               <CardContent className="flex items-center justify-center py-8">
@@ -752,6 +903,24 @@ export default function ReportsPage() {
             </Card>
           ) : balanceSheetData ? (
             <div className="space-y-6">
+              <div className="flex justify-end">
+                <Button
+                  onClick={() => {
+                    const doc = exportBalanceSheetToPDF(balanceSheetData, {
+                      businessName: selectedBusiness?.name || 'Business Report',
+                      period: `As of ${formatDate(balanceSheetData.asOfDate)}`,
+                      generatedDate: new Date()
+                    });
+                    downloadPDF(doc, `balance-sheet-${new Date().toISOString().split('T')[0]}.pdf`);
+                    toast.success("Balance Sheet exported");
+                  }}
+                  variant="outline"
+                  size="sm"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Balance Sheet to PDF
+                </Button>
+              </div>
               {/* Balance Sheet Header */}
               <Card>
                 <CardHeader>
@@ -1199,7 +1368,26 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
           ) : expenseData ? (
-            <Card>
+            <>
+              <div className="flex justify-end">
+                <Button
+                  onClick={() => {
+                    const doc = exportExpenseCategoriesReportToPDF(expenseData, {
+                      businessName: selectedBusiness?.name || 'Business Report',
+                      period: expenseData.period,
+                      generatedDate: new Date()
+                    });
+                    downloadPDF(doc, `expense-categories-${new Date().toISOString().split('T')[0]}.pdf`);
+                    toast.success("Expense Categories report exported");
+                  }}
+                  variant="outline"
+                  size="sm"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Expenses to PDF
+                </Button>
+              </div>
+              <Card>
               <CardHeader>
                 <CardTitle>Expense Categories Analysis</CardTitle>
                 <CardDescription>
@@ -1313,6 +1501,7 @@ export default function ReportsPage() {
                 </div>
               </CardContent>
             </Card>
+            </>
           ) : (
             <Card>
               <CardContent className="flex items-center justify-center py-8">
@@ -1348,6 +1537,24 @@ export default function ReportsPage() {
             </Card>
           ) : cashFlowData ? (
             <div className="space-y-6">
+              <div className="flex justify-end">
+                <Button
+                  onClick={() => {
+                    const doc = exportCashFlowReportToPDF(cashFlowData, {
+                      businessName: selectedBusiness?.name || 'Business Report',
+                      period: cashFlowData.period,
+                      generatedDate: new Date()
+                    });
+                    downloadPDF(doc, `cash-flow-${new Date().toISOString().split('T')[0]}.pdf`);
+                    toast.success("Cash Flow report exported");
+                  }}
+                  variant="outline"
+                  size="sm"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Cash Flow to PDF
+                </Button>
+              </div>
               {/* Cash Flow Summary */}
               <Card>
                 <CardHeader>

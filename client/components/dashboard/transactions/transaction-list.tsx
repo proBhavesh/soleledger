@@ -45,12 +45,14 @@ import {
 } from "@/lib/actions/transaction-actions";
 import { EditTransactionDialog } from "./edit-transaction-dialog";
 import { CategorizeTransactionDialog } from "./categorize-transaction-dialog";
+import { ManualMatchDialog } from "@/components/dashboard/reconciliation/manual-match-dialog";
 import {
 	FiEdit2,
 	FiTag,
 	FiCheckCircle,
 	FiTrash2,
 	FiSliders,
+	FiFileText,
 } from "react-icons/fi";
 
 // Loading skeleton rows for the transaction table
@@ -106,8 +108,9 @@ function TransactionDropdownMenu({
 	onEdit,
 	onCategorize,
 	onReconcile,
+	onMatchDocument,
 	onDelete,
-}: TransactionDropdownMenuProps) {
+}: TransactionDropdownMenuProps & { onMatchDocument: () => void }) {
 	return (
 		<DropdownMenuContent align="end" className="w-[200px]">
 			<DropdownMenuItem 
@@ -132,6 +135,13 @@ function TransactionDropdownMenu({
 				<span>{transaction.reconciled ? "Mark as unreconciled" : "Mark as reconciled"}</span>
 			</DropdownMenuItem>
 			<DropdownMenuItem 
+				onClick={onMatchDocument}
+				className="cursor-pointer flex items-center gap-2 hover:bg-accent"
+			>
+				<FiFileText className="h-4 w-4 text-muted-foreground" />
+				<span>Match Document</span>
+			</DropdownMenuItem>
+			<DropdownMenuItem 
 				onClick={onDelete}
 				className="text-destructive cursor-pointer flex items-center gap-2 hover:bg-destructive/10"
 			>
@@ -151,6 +161,7 @@ export function TransactionList({
 	const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
 	const [editDialogOpen, setEditDialogOpen] = useState(false);
 	const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+	const [matchDocumentDialogOpen, setMatchDocumentDialogOpen] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
 
 	// Handle delete transaction
@@ -195,6 +206,12 @@ export function TransactionList({
 		} catch {
 			toast.error("Failed to update reconciliation status");
 		}
+	};
+
+	// Handle match document
+	const handleMatchDocument = (transaction: Transaction) => {
+		setSelectedTransaction(transaction);
+		setMatchDocumentDialogOpen(true);
 	};
 
 
@@ -323,6 +340,7 @@ export function TransactionList({
 													setCategoryDialogOpen(true);
 												}}
 												onReconcile={() => handleReconcile(transaction)}
+												onMatchDocument={() => handleMatchDocument(transaction)}
 												onDelete={() => {
 													setSelectedTransaction(transaction);
 													setDeleteDialogOpen(true);
@@ -374,6 +392,28 @@ export function TransactionList({
 				onOpenChange={setCategoryDialogOpen}
 				onSuccess={onRefresh}
 			/>
+
+			{/* Match Document Dialog */}
+			{selectedTransaction && (
+				<ManualMatchDialog
+					open={matchDocumentDialogOpen}
+					onOpenChange={setMatchDocumentDialogOpen}
+					transaction={{
+						id: selectedTransaction.id,
+						date: selectedTransaction.date instanceof Date 
+							? selectedTransaction.date 
+							: new Date(selectedTransaction.date),
+						amount: selectedTransaction.amount,
+						description: selectedTransaction.description || null,
+						category: selectedTransaction.category || null,
+						bankAccount: selectedTransaction.accountName || null,
+					}}
+					onSuccess={() => {
+						setMatchDocumentDialogOpen(false);
+						onRefresh?.();
+					}}
+				/>
+			)}
 
 		</div>
 	);

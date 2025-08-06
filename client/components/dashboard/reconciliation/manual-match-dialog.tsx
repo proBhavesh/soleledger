@@ -146,42 +146,44 @@ export function ManualMatchDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh]">
-        <DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Manually Match Transaction</DialogTitle>
           <DialogDescription>
             Select a document to match with this transaction
           </DialogDescription>
         </DialogHeader>
 
-        {/* Transaction Details */}
-        <Card className="mb-4">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Transaction Details</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">Date:</span>
-                <span>{formatDate(transaction.date)}</span>
+        {/* Scrollable Content Area */}
+        <div className="flex-1 overflow-y-auto px-1">
+          {/* Transaction Details */}
+          <Card className="mb-4">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Transaction Details</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">Date:</span>
+                  <span>{formatDate(transaction.date)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">Amount:</span>
+                  <span>{formatCurrency(transaction.amount)}</span>
+                </div>
+                <div className="flex items-center gap-2 col-span-2">
+                  <Building className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">Description:</span>
+                  <span>{transaction.description || "N/A"}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">Amount:</span>
-                <span>{formatCurrency(transaction.amount)}</span>
-              </div>
-              <div className="flex items-center gap-2 col-span-2">
-                <Building className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">Description:</span>
-                <span>{transaction.description || "N/A"}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        {/* Document Selection */}
-        <div className="space-y-4">
+          {/* Document Selection */}
+          <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Search className="h-4 w-4 text-muted-foreground" />
             <Input
@@ -327,20 +329,22 @@ export function ManualMatchDialog({
             </TabsContent>
           </Tabs>
 
-          {/* Notes */}
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notes (Optional)</Label>
-            <Textarea
-              id="notes"
-              placeholder="Add any notes about this match..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-            />
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes (Optional)</Label>
+              <Textarea
+                id="notes"
+                placeholder="Add any notes about this match..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
           </div>
         </div>
 
-        <DialogFooter>
+        {/* Fixed Footer */}
+        <DialogFooter className="flex-shrink-0 border-t pt-4 mt-4">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}

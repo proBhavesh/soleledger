@@ -39,6 +39,110 @@ export const ReceiptDataSchema = z.object({
 
 export type ReceiptData = ExtractedReceiptData;
 
+/**
+ * Get Chart of Accounts relevant for receipt/invoice categorization.
+ * Filters to only expense accounts and inventory (for purchases that will be resold).
+ * This ensures AI doesn't incorrectly categorize receipts as assets, liabilities, equity, or income.
+ */
+function getReceiptRelevantAccounts() {
+  return CHART_OF_ACCOUNTS.filter(account => {
+    // Include all expense accounts
+    if (account.type === 'EXPENSE') return true;
+    
+    // Include Inventory for product purchases that will be resold
+    if (account.code === '1200') return true;
+    
+    // Exclude all other account types (other assets, liabilities, equity, income)
+    return false;
+  });
+}
+
+/**
+ * Validate and sanitize category returned by AI.
+ * Ensures the category is a valid expense account from our Chart of Accounts.
+ * Returns "Miscellaneous Expense" if the category is invalid.
+ */
+function validateCategory(category: string | undefined): string | undefined {
+  if (!category) return undefined;
+  
+  const validAccounts = getReceiptRelevantAccounts();
+  const validAccountNames = validAccounts.map(acc => acc.name);
+  
+  // Check if the category is valid
+  if (validAccountNames.includes(category)) {
+    return category;
+  }
+  
+  // If not valid, log a warning and default to Miscellaneous Expense
+  console.warn(`Invalid category returned by AI: "${category}". Defaulting to "Miscellaneous Expense"`);
+  return "Miscellaneous Expense";
+}
+
+/**
+ * Create categorization rules mapping for the AI prompt.
+ * Provides clear examples of how to categorize different types of expenses.
+ */
+function getCategorizationRules(): string {
+  return `
+    CATEGORIZATION RULES (match receipt items to these categories):
+    
+    FOOD & HOSPITALITY:
+    - Restaurant bills, coffee, meals → "Travel & Meals"
+    - Business lunch/dinner → "Travel & Meals"
+    - Food delivery for office → "Travel & Meals"
+    
+    TRAVEL & TRANSPORTATION:
+    - Hotels, flights, train tickets → "Travel & Meals"
+    - Taxi, Uber, Lyft → "Travel & Meals"
+    - Gas/fuel for business vehicles → "Travel & Meals"
+    - Parking fees → "Travel & Meals"
+    
+    OFFICE & SUPPLIES:
+    - Office supplies, stationery → "Office Supplies"
+    - Printer ink, paper → "Office Supplies"
+    - Small office equipment (<$500) → "Office Supplies"
+    
+    PROFESSIONAL SERVICES:
+    - Software subscriptions, SaaS → "Professional Fees"
+    - Legal services, lawyer fees → "Professional Fees"
+    - Accounting, bookkeeping services → "Professional Fees"
+    - Consulting services → "Professional Fees"
+    - Domain names, web hosting → "Professional Fees"
+    
+    MARKETING & ADVERTISING:
+    - Online ads (Google, Facebook, etc.) → "Advertising & Marketing"
+    - Print advertising → "Advertising & Marketing"
+    - Business cards, flyers → "Advertising & Marketing"
+    - Trade show expenses → "Advertising & Marketing"
+    
+    FACILITIES & UTILITIES:
+    - Office/store rent → "Rent Expense"
+    - Electricity, gas, water bills → "Utilities Expense"
+    - Internet, phone bills → "Utilities Expense"
+    - Cleaning services → "Utilities Expense"
+    
+    INSURANCE:
+    - Business insurance premiums → "Insurance Expense"
+    - Professional liability insurance → "Insurance Expense"
+    - Vehicle insurance (business) → "Insurance Expense"
+    
+    EMPLOYMENT:
+    - Employee salaries, wages → "Salaries and Wages"
+    - Contractor payments → "Salaries and Wages"
+    - Payroll services → "Salaries and Wages"
+    
+    INVENTORY & PRODUCTS:
+    - Products for resale → "Inventory" (if you resell products)
+    - Raw materials for production → "Cost of Goods Sold (COGS)"
+    - Direct production costs → "Cost of Goods Sold (COGS)"
+    
+    OTHER:
+    - Bank fees, service charges → "Miscellaneous Expense"
+    - Licenses, permits → "Miscellaneous Expense"
+    - Everything else that doesn't fit above → "Miscellaneous Expense"
+  `;
+}
+
 // Claude API response schema
 const ClaudeResponseSchema = z.object({
   content: z.array(
@@ -72,7 +176,17 @@ function preprocessClaudeResponse(data: UnknownData): UnknownData {
 }
 
 /**
- * Process a receipt image or PDF using Claude API directly
+ * Process a receipt image or PDF using Claude API directly.
+ * 
+ * This function:
+ * 1. Sends the receipt to Claude AI for OCR and data extraction
+ * 2. Uses a filtered list of Chart of Accounts (only expense accounts + inventory)
+ * 3. Validates that returned categories are valid expense accounts
+ * 4. Returns structured data with vendor, amount, date, tax, and categorized line items
+ * 
+ * @param fileUrl - URL of the receipt image or PDF
+ * @param mimeType - MIME type of the file (image/* or application/pdf)
+ * @returns Extracted receipt data with validated expense categories
  */
 export async function processReceiptWithAI(
   fileUrl: string,
@@ -102,8 +216,12 @@ async function processReceiptWithClaude(
   fileUrl: string,
   contentType: "image" | "document"
 ): Promise<ReceiptData> {
-  // Get valid Chart of Accounts names for the prompt
-  const chartAccountNames = CHART_OF_ACCOUNTS.map(acc => `"${acc.name}"`).join(", ");
+  // Get only receipt-relevant accounts (expenses and inventory)
+  const receiptAccounts = getReceiptRelevantAccounts();
+  const chartAccountNames = receiptAccounts.map(acc => `"${acc.name}"`).join(", ");
+  
+  // Get detailed categorization rules
+  const categorizationRules = getCategorizationRules();
   
   const prompt = `
     FIRST: Determine if this ${
@@ -156,29 +274,28 @@ async function processReceiptWithClaude(
     - For dates, use ISO format (YYYY-MM-DD)
     - If information is unclear or missing, omit those fields entirely
     
-    CRITICAL: For the "category" field, you MUST use ONLY these exact Chart of Accounts names:
+    CRITICAL: For the "category" field, you MUST use ONLY these exact expense account names:
     ${chartAccountNames}
     
-    CATEGORIZATION RULES for receipts/invoices:
-    - Restaurant/coffee/meals → "Travel & Meals"
-    - Hotels/flights/taxi/uber → "Travel & Meals"
-    - Office supplies/stationery → "Office Supplies"
-    - Software/subscriptions/SaaS → "Professional Fees"
-    - Legal/accounting/consulting → "Professional Fees"
-    - Marketing/advertising/ads → "Advertising & Marketing"
-    - Insurance premiums → "Insurance Expense"
-    - Rent/lease payments → "Rent Expense"
-    - Electricity/gas/water/internet/phone → "Utilities Expense"
-    - Employee salaries/wages → "Salaries and Wages"
-    - Direct product costs → "Cost of Goods Sold (COGS)"
-    - Everything else → "Miscellaneous Expense"
+    DO NOT use any other account names like "Cash", "Accounts Payable", "Sales Revenue", etc.
+    ONLY use the expense categories listed above.
     
-    EXAMPLES:
+    ${categorizationRules}
+    
+    SPECIFIC EXAMPLES:
     - Tim Hortons receipt → category: "Travel & Meals"
-    - Adobe subscription → category: "Professional Fees"
+    - Starbucks coffee → category: "Travel & Meals"
+    - Adobe Creative Cloud → category: "Professional Fees"
+    - Microsoft 365 subscription → category: "Professional Fees"
     - Staples office supplies → category: "Office Supplies"
+    - Amazon (office supplies) → category: "Office Supplies"
     - Facebook ads → category: "Advertising & Marketing"
+    - Google Ads → category: "Advertising & Marketing"
     - Bell phone bill → category: "Utilities Expense"
+    - Rogers internet → category: "Utilities Expense"
+    - Office rent payment → category: "Rent Expense"
+    - Walmart (if products for resale) → category: "Inventory"
+    - Raw materials purchase → category: "Cost of Goods Sold (COGS)"
     
     Special cases:
     - If document is unclear/corrupted: confidence = 0.1-0.3
@@ -251,7 +368,7 @@ async function processReceiptWithClaude(
         type: "other",
         vendor: undefined,
         amount: undefined,
-        currency: "USD",
+        currency: "CAD",
         date: undefined,
         tax: undefined,
         confidence: 0,
@@ -262,6 +379,23 @@ async function processReceiptWithClaude(
     // Validate the extracted data against our schema
     const preprocessedData = preprocessClaudeResponse(extractedData);
     const validatedData = ReceiptDataSchema.parse(preprocessedData);
+    
+    // Additional validation: Ensure categories are valid expense accounts
+    // This is a safety net in case AI returns invalid categories
+    if (validatedData.items) {
+      validatedData.items = validatedData.items.map(item => ({
+        ...item,
+        category: validateCategory(item.category)
+      }));
+    }
+    
+    if (validatedData.suggestedSplits) {
+      validatedData.suggestedSplits = validatedData.suggestedSplits.map(split => ({
+        ...split,
+        category: validateCategory(split.category) || "Miscellaneous Expense"
+      }));
+    }
+    
     return validatedData;
   } catch (error) {
     console.error("Error calling Claude API:", error);
@@ -270,7 +404,7 @@ async function processReceiptWithClaude(
       type: "other",
       vendor: undefined,
       amount: undefined,
-      currency: "USD",
+      currency: "CAD",
       date: undefined,
       tax: undefined,
       confidence: 0,
