@@ -10,12 +10,11 @@ import type { Transaction as PrismaTransaction, Category, BankAccount } from "@/
 // Permission Types
 // =======================================================
 
+// Simplified for MVP - all users have full management
 export const PERMISSION_LEVELS = {
   BUSINESS_OWNER: "BUSINESS_OWNER",
   ACCOUNTANT: "ACCOUNTANT",
   FULL_MANAGEMENT: "FULL_MANAGEMENT",
-  FINANCIAL_ONLY: "FINANCIAL_ONLY",
-  VIEW_ONLY: "VIEW_ONLY",
 } as const;
 
 export type PermissionLevel = typeof PERMISSION_LEVELS[keyof typeof PERMISSION_LEVELS];

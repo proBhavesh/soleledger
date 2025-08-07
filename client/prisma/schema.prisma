@@ -134,7 +134,7 @@ model BusinessMember {
   businessId  String
   userId      String
   role        String              // Keep for backward compatibility
-  accessLevel BusinessAccessLevel @default(VIEW_ONLY)
+  accessLevel BusinessAccessLevel @default(FULL_MANAGEMENT)
   permissions Json?               // Additional granular permissions if needed
   invitedBy   String?             // Who invited this member
   invitedAt   DateTime?           // When they were invited
@@ -161,7 +161,7 @@ model TeamInvitation {
   updatedAt      DateTime         @updatedAt
   token          String               @unique @default(cuid())
   invitationType InvitationType
-  accessLevel    BusinessAccessLevel  @default(VIEW_ONLY)
+  accessLevel    BusinessAccessLevel  @default(FULL_MANAGEMENT)
   businessName   String?              // For new businesses
   clientName     String?              // Name of the person being invited
   
@@ -478,10 +478,7 @@ enum UserRole {
 }
 
 enum BusinessAccessLevel {
-  VIEW_ONLY           // Can view all data but not modify
   FULL_MANAGEMENT     // Can view and modify all data (like business owner)
-  FINANCIAL_ONLY      // Can manage financial data (transactions, bank accounts)
-  DOCUMENTS_ONLY      // Can manage documents and receipts
 }
 
 enum SubscriptionStatus {

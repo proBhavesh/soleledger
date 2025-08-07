@@ -35,18 +35,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+// Select components removed - not needed for MVP with single access level
 import {
   UserPlus,
   MoreHorizontal,
-  Eye,
-  Settings,
   Trash2,
   Mail,
   Shield,
@@ -56,14 +48,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   BusinessAccessLevel,
   accessLevelLabels,
-  accessLevelDescriptions,
   type BusinessMemberWithUser,
   type InviteMemberData,
 } from "@/lib/types/business-access";
 import {
   inviteMemberToBusiness,
   getBusinessMembers,
-  updateMemberAccess,
   removeMemberFromBusiness,
 } from "@/lib/actions/member-management-actions";
 
@@ -79,7 +69,7 @@ export function TeamManagement({ businessId, isOwner }: TeamManagementProps) {
   const [isInviting, setIsInviting] = useState(false);
   const [inviteForm, setInviteForm] = useState<InviteMemberData>({
     email: "",
-    accessLevel: BusinessAccessLevel.VIEW_ONLY,
+    accessLevel: BusinessAccessLevel.FULL_MANAGEMENT, // MVP: All users have full access
     message: "",
   });
 
@@ -118,7 +108,7 @@ export function TeamManagement({ businessId, isOwner }: TeamManagementProps) {
         toast.success("Invitation sent successfully!");
         setInviteForm({
           email: "",
-          accessLevel: BusinessAccessLevel.VIEW_ONLY,
+          accessLevel: BusinessAccessLevel.FULL_MANAGEMENT,
           message: "",
         });
         setIsInviteDialogOpen(false);
@@ -134,20 +124,7 @@ export function TeamManagement({ businessId, isOwner }: TeamManagementProps) {
     }
   };
 
-  const handleUpdateAccess = async (memberId: string, newAccessLevel: BusinessAccessLevel) => {
-    try {
-      const result = await updateMemberAccess(businessId, memberId, newAccessLevel);
-      if (result.success) {
-        toast.success("Access level updated successfully!");
-        loadMembers(); // Refresh the list
-      } else {
-        toast.error(result.error || "Failed to update access level");
-      }
-    } catch (error) {
-      console.error("Error updating access:", error);
-      toast.error("Failed to update access level");
-    }
-  };
+  // Access level updates removed - MVP has single access level
 
   const handleRemoveMember = async (memberId: string) => {
     try {
@@ -164,17 +141,9 @@ export function TeamManagement({ businessId, isOwner }: TeamManagementProps) {
     }
   };
 
-  const getAccessLevelBadgeVariant = (accessLevel: BusinessAccessLevel) => {
-    switch (accessLevel) {
-      case BusinessAccessLevel.FULL_MANAGEMENT:
-        return "default";
-      case BusinessAccessLevel.FINANCIAL_ONLY:
-        return "secondary";
-      case BusinessAccessLevel.DOCUMENTS_ONLY:
-        return "outline";
-      default:
-        return "outline";
-    }
+  const getAccessLevelBadgeVariant = (): "default" => {
+    // MVP: All users have full management
+    return "default";
   };
 
   const getInitials = (name: string) => {
@@ -251,8 +220,8 @@ export function TeamManagement({ businessId, isOwner }: TeamManagementProps) {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={getAccessLevelBadgeVariant(member.accessLevel)}>
-                      {accessLevelLabels[member.accessLevel]}
+                    <Badge variant={getAccessLevelBadgeVariant()}>
+                      {accessLevelLabels[BusinessAccessLevel.FULL_MANAGEMENT]}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -269,27 +238,6 @@ export function TeamManagement({ businessId, isOwner }: TeamManagementProps) {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => handleUpdateAccess(member.id, BusinessAccessLevel.VIEW_ONLY)}
-                            disabled={member.accessLevel === BusinessAccessLevel.VIEW_ONLY}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Only
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleUpdateAccess(member.id, BusinessAccessLevel.FINANCIAL_ONLY)}
-                            disabled={member.accessLevel === BusinessAccessLevel.FINANCIAL_ONLY}
-                          >
-                            <Settings className="h-4 w-4 mr-2" />
-                            Financial Only
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleUpdateAccess(member.id, BusinessAccessLevel.FULL_MANAGEMENT)}
-                            disabled={member.accessLevel === BusinessAccessLevel.FULL_MANAGEMENT}
-                          >
-                            <Shield className="h-4 w-4 mr-2" />
-                            Full Management
-                          </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => handleRemoveMember(member.id)}
                             className="text-destructive"
@@ -331,31 +279,8 @@ export function TeamManagement({ businessId, isOwner }: TeamManagementProps) {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="accessLevel">Access Level</Label>
-                <Select
-                  value={inviteForm.accessLevel}
-                  onValueChange={(value: BusinessAccessLevel) =>
-                    setInviteForm((prev) => ({ ...prev, accessLevel: value }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select access level" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(accessLevelLabels).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        <div className="flex flex-col">
-                          <span>{label}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {accessLevelDescriptions[value as BusinessAccessLevel]}
-                          </span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Access Level - Hidden for MVP as all users have full access */}
+              <input type="hidden" value={BusinessAccessLevel.FULL_MANAGEMENT} />
 
               <div className="space-y-2">
                 <Label htmlFor="message">Personal Message (Optional)</Label>

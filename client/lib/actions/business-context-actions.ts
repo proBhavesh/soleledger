@@ -1,43 +1,31 @@
+/**
+ * Server actions for managing business context and multi-tenant functionality.
+ * 
+ * These actions handle business selection, permission checking, and context
+ * switching for users who may have access to multiple businesses.
+ */
+
 "use server";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { 
-  BusinessAccessLevel,
-  canViewFinancials,
-  canManageFinancials,
-  canViewDocuments,
-  canManageDocuments,
-  canManageSettings
-} from "@/lib/types/business-access";
+import { BusinessAccessLevel, MVP_PERMISSIONS } from "@/lib/types/business-access";
 import {
+  type UserBusiness,
+  type GetUserBusinessesResponse,
+  type GetBusinessDetailsResponse,
   type BusinessContextResponse,
   BUSINESS_CONTEXT_ERROR_MESSAGES,
 } from "@/lib/types/business-context";
-
-export interface UserBusiness {
-  id: string;
-  name: string;
-  role: string;
-  accessLevel?: BusinessAccessLevel;
-  isOwner: boolean;
-  permissions?: {
-    canViewFinancials: boolean;
-    canManageFinancials: boolean;
-    canViewDocuments: boolean;
-    canManageDocuments: boolean;
-    canManageSettings: boolean;
-  };
-}
-
-export interface GetUserBusinessesResponse {
-  success: boolean;
-  businesses?: UserBusiness[];
-  error?: string;
-}
+import { logger } from "@/lib/utils/logger";
 
 /**
- * Get all businesses the current user has access to
+ * Get all businesses the current user has access to.
+ * 
+ * This function retrieves all businesses where the user is either an owner
+ * or a member. It includes permission information for each business.
+ * 
+ * @returns Promise resolving to the list of accessible businesses
  */
 export async function getUserBusinesses(): Promise<GetUserBusinessesResponse> {
   try {
@@ -68,13 +56,7 @@ export async function getUserBusinesses(): Promise<GetUserBusinessesResponse> {
           role: "BUSINESS_OWNER",
           accessLevel: BusinessAccessLevel.FULL_MANAGEMENT,
           isOwner: true,
-          permissions: {
-            canViewFinancials: true,
-            canManageFinancials: true,
-            canViewDocuments: true,
-            canManageDocuments: true,
-            canManageSettings: true,
-          },
+          permissions: { ...MVP_PERMISSIONS },
         }];
       }
     } else if (userRole === "ACCOUNTANT") {
@@ -91,23 +73,14 @@ export async function getUserBusinesses(): Promise<GetUserBusinessesResponse> {
         },
       });
 
-      businesses = businessMembers.map(member => {
-        const accessLevel = member.accessLevel as BusinessAccessLevel || BusinessAccessLevel.VIEW_ONLY;
-        return {
-          id: member.business.id,
-          name: member.business.name,
-          role: member.role,
-          accessLevel,
-          isOwner: false,
-          permissions: {
-            canViewFinancials: canViewFinancials(accessLevel),
-            canManageFinancials: canManageFinancials(accessLevel),
-            canViewDocuments: canViewDocuments(accessLevel),
-            canManageDocuments: canManageDocuments(accessLevel),
-            canManageSettings: canManageSettings(accessLevel),
-          },
-        };
-      });
+      businesses = businessMembers.map(member => ({
+        id: member.business.id,
+        name: member.business.name,
+        role: member.role,
+        accessLevel: BusinessAccessLevel.FULL_MANAGEMENT, // MVP: All members have full access
+        isOwner: false,
+        permissions: { ...MVP_PERMISSIONS },
+      }));
 
       // Also include any businesses they own (accountants can also be business owners)
       const ownedBusinesses = await db.business.findMany({
@@ -127,29 +100,30 @@ export async function getUserBusinesses(): Promise<GetUserBusinessesResponse> {
             role: "BUSINESS_OWNER",
             accessLevel: BusinessAccessLevel.FULL_MANAGEMENT,
             isOwner: true,
-            permissions: {
-              canViewFinancials: true,
-              canManageFinancials: true,
-              canViewDocuments: true,
-              canManageDocuments: true,
-              canManageSettings: true,
-            },
+            permissions: { ...MVP_PERMISSIONS },
           });
         }
       });
     }
 
+    logger.debug(`Retrieved ${businesses.length} businesses for user ${userId}`);
     return { success: true, businesses };
   } catch (error) {
-    console.error("Error getting user businesses:", error);
+    logger.error("Error getting user businesses:", error);
     return { success: false, error: BUSINESS_CONTEXT_ERROR_MESSAGES.serverError };
   }
 }
 
 /**
- * Get business details for the current context
+ * Get detailed information about a specific business.
+ * 
+ * This function verifies the user has access to the business before
+ * returning its details.
+ * 
+ * @param businessId - The ID of the business to retrieve
+ * @returns Promise resolving to the business details
  */
-export async function getBusinessDetails(businessId: string) {
+export async function getBusinessDetails(businessId: string): Promise<GetBusinessDetailsResponse> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -164,6 +138,7 @@ export async function getBusinessDetails(businessId: string) {
 
     const hasAccess = userBusinesses.businesses.some(b => b.id === businessId);
     if (!hasAccess) {
+      logger.warn(`User ${session.user.id} attempted to access business ${businessId} without permission`);
       return { success: false, error: BUSINESS_CONTEXT_ERROR_MESSAGES.permissionDenied };
     }
 
@@ -182,15 +157,18 @@ export async function getBusinessDetails(businessId: string) {
 
     return { success: true, business };
   } catch (error) {
-    console.error("Error getting business details:", error);
+    logger.error("Error getting business details:", error);
     return { success: false, error: BUSINESS_CONTEXT_ERROR_MESSAGES.serverError };
   }
 }
 
 /**
  * Get the current business ID for the user.
+ * 
  * For business owners, returns their owned business.
  * For accountants, reads from cookie or returns the first business they have access to.
+ * 
+ * @returns Promise resolving to the current business ID or null
  */
 export async function getCurrentBusinessId(): Promise<string | null> {
   try {
@@ -251,13 +229,20 @@ export async function getCurrentBusinessId(): Promise<string | null> {
 
     return null;
   } catch (error) {
-    console.error("Error getting current business ID:", error);
+    logger.error("Error getting current business ID:", error);
     return null;
   }
 }
 
 /**
- * Set the selected business ID in a cookie for accountants
+ * Set the selected business ID for the current user.
+ * 
+ * This function verifies the user has access to the business before
+ * setting it as their current context. The selection is persisted
+ * in a cookie for future requests.
+ * 
+ * @param businessId - The ID of the business to select
+ * @returns Promise resolving to the operation result
  */
 export async function setSelectedBusinessId(businessId: string): Promise<BusinessContextResponse> {
   try {
@@ -284,6 +269,7 @@ export async function setSelectedBusinessId(businessId: string): Promise<Busines
     });
     
     if (!hasAccess && !isOwner) {
+      logger.warn(`User ${userId} attempted to select business ${businessId} without access`);
       return { success: false, error: BUSINESS_CONTEXT_ERROR_MESSAGES.permissionDenied };
     }
     
@@ -297,9 +283,10 @@ export async function setSelectedBusinessId(businessId: string): Promise<Busines
       maxAge: 60 * 60 * 24 * 30, // 30 days
     });
     
+    logger.info(`User ${userId} selected business ${businessId}`);
     return { success: true };
   } catch (error) {
-    console.error("Error setting selected business ID:", error);
+    logger.error("Error setting selected business ID:", error);
     return { success: false, error: BUSINESS_CONTEXT_ERROR_MESSAGES.serverError };
   }
 }

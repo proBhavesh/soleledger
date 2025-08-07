@@ -244,8 +244,7 @@ export async function updateReconciliationStatus(
     const transaction = await db.transaction.findFirst({
       where: buildTransactionPermissionWhere(
         validatedData.transactionId,
-        session.user.id,
-        false
+        session.user.id
       ),
     });
 
@@ -393,17 +392,12 @@ export async function bulkReconcileTransactions(
         OR: [
           // Check if user is the business owner
           { business: { ownerId: session.user.id } },
-          // Check if user is a member with permissions
+          // Check if user is a member (all members have full access in MVP)
           {
             business: {
               members: {
                 some: {
                   userId: session.user.id,
-                  OR: [
-                    { role: "BUSINESS_OWNER" },
-                    { role: "ACCOUNTANT" },
-                    { accessLevel: { in: ["FULL_MANAGEMENT", "FINANCIAL_ONLY"] } },
-                  ],
                 },
               },
             },
@@ -538,8 +532,7 @@ export async function manuallyMatchTransaction(
     const transaction = await db.transaction.findFirst({
       where: buildTransactionPermissionWhere(
         transactionId,
-        session.user.id,
-        false
+        session.user.id
       ),
     });
 
@@ -629,8 +622,7 @@ export async function unmatchTransaction(
     const transaction = await db.transaction.findFirst({
       where: buildTransactionPermissionWhere(
         transactionId,
-        session.user.id,
-        false
+        session.user.id
       ),
       include: {
         reconciliation: true,

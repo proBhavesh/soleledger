@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -65,7 +65,7 @@ export function ReportHistory({ onViewReport }: ReportHistoryProps) {
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
     try {
       setIsLoading(true);
       const filters = selectedType !== "all" ? { type: selectedType as "PROFIT_LOSS" | "BALANCE_SHEET" | "CASH_FLOW" | "EXPENSE_CATEGORIES" | "RECONCILIATION_SUMMARY" | "TAX_SUMMARY" | "MONTHLY_SUMMARY" } : {};
@@ -81,11 +81,11 @@ export function ReportHistory({ onViewReport }: ReportHistoryProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedType]);
 
   useEffect(() => {
     fetchReports();
-  }, [selectedType]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchReports]);
 
   const handleViewReport = async (report: SavedReport) => {
     if (onViewReport) {

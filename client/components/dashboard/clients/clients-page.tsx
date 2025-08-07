@@ -27,7 +27,8 @@ import {
   Eye,
 } from "lucide-react";
 import { useBusinessContext } from "@/lib/contexts/business-context";
-import { UserBusiness, getUserBusinesses } from "@/lib/actions/business-context-actions";
+import { getUserBusinesses } from "@/lib/actions/business-context-actions";
+import type { UserBusiness } from "@/lib/types/business-context";
 import { AddClientDialog } from "./add-client-dialog";
 import { InvitationManagement } from "./invitation-management";
 

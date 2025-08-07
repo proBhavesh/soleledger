@@ -41,8 +41,7 @@ export async function updateTransaction(data: UpdateTransactionData): Promise<Up
     const transaction = await db.transaction.findFirst({
       where: buildTransactionPermissionWhere(
         validatedData.transactionId,
-        session.user.id,
-        false
+        session.user.id
       ),
     });
 
@@ -94,12 +93,11 @@ export async function deleteTransaction(transactionId: string): Promise<DeleteTr
       return { success: false, error: "Unauthorized" };
     }
 
-    // Verify transaction belongs to user's business with full access
+    // Verify transaction belongs to user's business
     const transaction = await db.transaction.findFirst({
       where: buildTransactionPermissionWhere(
         transactionId,
-        session.user.id,
-        true // Require full access for deletion
+        session.user.id
       ),
       include: {
         journalEntries: true,
@@ -153,8 +151,7 @@ export async function updateTransactionCategory(data: UpdateCategoryData): Promi
       const transaction = await tx.transaction.findFirst({
         where: buildTransactionPermissionWhere(
           validatedData.transactionId,
-          session.user.id,
-          false
+          session.user.id
         ),
       });
 
@@ -230,8 +227,7 @@ export async function toggleTransactionReconciliation(data: UpdateReconciliation
     const transaction = await db.transaction.findFirst({
       where: buildTransactionPermissionWhere(
         validatedData.transactionId,
-        session.user.id,
-        false
+        session.user.id
       ),
     });
 

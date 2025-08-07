@@ -83,9 +83,7 @@ export function BankImportsPage({ bankAccounts, error }: BankImportsPageProps) {
       case "PENDING":
         return <Badge variant="outline">Pending</Badge>;
       default:
-        // TypeScript exhaustiveness check
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const _exhaustive: never = status;
+        // Default case handles any unexpected status values
         return <Badge variant="outline">{status}</Badge>;
     }
   };

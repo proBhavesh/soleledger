@@ -10,7 +10,7 @@ export const createClientInvitationSchema = z.object({
   email: z.string().email("Invalid email address"),
   clientName: z.string().min(1, "Client name is required"),
   businessName: z.string().min(1, "Business name is required"),
-  accessLevel: z.enum(["VIEW_ONLY", "FULL_MANAGEMENT", "FINANCIAL_ONLY", "DOCUMENTS_ONLY"]),
+  accessLevel: z.enum(["FULL_MANAGEMENT"]), // MVP: Only full management
   sendNotification: z.boolean().default(true),
 });
 
@@ -153,17 +153,8 @@ export const existingUserWithBusinessEmailParamsSchema = z.object({
   expiresAt: z.string(),
 });
 
-// Access level information for UI
+// Access level information for UI - Simplified for MVP
 export const ACCESS_LEVEL_INFO = {
-  VIEW_ONLY: {
-    label: "View Only",
-    description: "Can view all data but cannot make changes",
-    permissions: [
-      "View all transactions and reports",
-      "Export financial data",
-      "View documents and receipts",
-    ],
-  },
   FULL_MANAGEMENT: {
     label: "Full Management",
     description: "Complete access to manage all aspects",
@@ -173,26 +164,6 @@ export const ACCESS_LEVEL_INFO = {
       "Process documents and receipts",
       "Generate and export reports",
       "Manage chart of accounts",
-    ],
-  },
-  FINANCIAL_ONLY: {
-    label: "Financial Only",
-    description: "Manage transactions, accounts, and reports",
-    permissions: [
-      "Create and edit transactions",
-      "Manage bank accounts",
-      "Generate financial reports",
-      "Manage chart of accounts",
-    ],
-  },
-  DOCUMENTS_ONLY: {
-    label: "Documents Only",
-    description: "Manage receipts, invoices, and reconciliation",
-    permissions: [
-      "Upload and process receipts",
-      "Manage document categorization",
-      "Handle invoice processing",
-      "Perform reconciliation",
     ],
   },
 } as const;

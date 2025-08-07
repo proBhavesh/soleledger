@@ -61,7 +61,7 @@ export async function syncTransactionsOptimized(
     });
 
     // Fetch all transactions from Plaid
-    const allTransactions = await fetchAllTransactions(accessToken, historyStartDate);
+    const allTransactions = await fetchAllTransactions(accessToken);
     console.log(`[Sync] Fetched ${allTransactions.length} transactions from Plaid`);
 
     // Filter out pending transactions and those outside date range
@@ -144,12 +144,11 @@ export async function syncTransactionsOptimized(
 }
 
 /**
- * Fetch all transactions using cursor pagination
+ * Fetch all transactions using cursor pagination.
+ * Uses Plaid's cursor-based sync API to retrieve all available transactions.
  */
 async function fetchAllTransactions(
-  accessToken: string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _startDate: Date
+  accessToken: string
 ): Promise<PlaidTransaction[]> {
   const allTransactions: PlaidTransaction[] = [];
   let hasMore = true;

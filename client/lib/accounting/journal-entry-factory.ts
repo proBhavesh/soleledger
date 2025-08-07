@@ -70,7 +70,7 @@ export class JournalEntryFactory {
         return this.createPayrollEntries(transaction);
       
       case "transfer":
-        return this.createTransferEntries(transaction);
+        return this.createTransferEntries();
       
       default:
         // Default to simple income or expense
@@ -448,10 +448,16 @@ export class JournalEntryFactory {
   }
 
   /**
-   * Transfer between accounts
+   * Transfer between accounts.
+   * 
+   * Transfers are intentionally ignored in bank imports as they'll appear in both accounts.
+   * This would create duplicate journal entries if processed from both sides.
+   * 
+   * Note: Parameter is required for method signature consistency but intentionally unused.
+   * 
+   * @returns Empty entry set to avoid duplication
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private createTransferEntries(_transaction: JournalEntryTransaction): JournalEntrySet {
+  private createTransferEntries(): JournalEntrySet {
     // Transfers should be ignored in bank imports as they'll appear in both accounts
     return { entries: [] };
   }

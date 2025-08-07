@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -53,7 +53,7 @@ export function ManualMatchDialog({
   const [notes, setNotes] = useState("");
   const [activeTab, setActiveTab] = useState("suggested");
 
-  const fetchDocuments = async () => {
+  const fetchDocuments = useCallback(async () => {
     try {
       setIsLoading(true);
       const result = await getAvailableDocuments(
@@ -70,14 +70,14 @@ export function ManualMatchDialog({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [transaction.date, transaction.amount]);
 
   // Fetch available documents when dialog opens
   useEffect(() => {
     if (open) {
       fetchDocuments();
     }
-  }, [open, transaction.date, transaction.amount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, fetchDocuments]);
 
   const handleMatch = async () => {
     if (!selectedDocument) {
