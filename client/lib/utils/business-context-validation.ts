@@ -3,6 +3,8 @@
  * 
  * These utilities ensure that multi-business operations are properly validated,
  * especially important for accountants managing multiple client businesses.
+ * 
+ * In the MVP version, all members have full access to business data.
  */
 
 import { auth } from "@/lib/auth";
@@ -28,10 +30,11 @@ export interface BusinessContextValidation {
  * 
  * This is crucial for multi-business scenarios where accountants
  * can switch between different client businesses.
+ * 
+ * In MVP: All members have full access, so all permissions are true.
  */
 export async function validateBusinessContext(
-  businessId: string,
-  requiredPermission?: "view" | "manage" | "financial" | "documents" | "settings"
+  businessId: string
 ): Promise<BusinessContextValidation> {
   try {
     const session = await auth();
@@ -66,62 +69,16 @@ export async function validateBusinessContext(
       return { isValid: false, error: "Business not found or access denied" };
     }
 
-    // Determine permissions
-    const isOwner = business.ownerId === session.user.id;
-    const member = business.members[0];
-    
+    // MVP: All members have full permissions
     const permissions = {
-      canViewFinancials: isOwner || 
-        member?.accessLevel === "FULL_MANAGEMENT" || 
-        member?.accessLevel === "FINANCIAL_ONLY" ||
-        member?.accessLevel === "VIEW_ONLY",
-      
-      canManageFinancials: isOwner || 
-        member?.accessLevel === "FULL_MANAGEMENT" || 
-        member?.accessLevel === "FINANCIAL_ONLY",
-      
-      canViewDocuments: isOwner || 
-        member?.accessLevel === "FULL_MANAGEMENT" || 
-        member?.accessLevel === "DOCUMENTS_ONLY" ||
-        member?.accessLevel === "VIEW_ONLY",
-      
-      canManageDocuments: isOwner || 
-        member?.accessLevel === "FULL_MANAGEMENT" || 
-        member?.accessLevel === "DOCUMENTS_ONLY",
-      
-      canManageSettings: isOwner || 
-        member?.accessLevel === "FULL_MANAGEMENT",
+      canViewFinancials: true,
+      canManageFinancials: true,
+      canViewDocuments: true,
+      canManageDocuments: true,
+      canManageSettings: true,
     };
 
-    // Check required permission if specified
-    if (requiredPermission) {
-      let hasPermission = false;
-      
-      switch (requiredPermission) {
-        case "view":
-          hasPermission = permissions.canViewFinancials || permissions.canViewDocuments;
-          break;
-        case "manage":
-          hasPermission = permissions.canManageFinancials || permissions.canManageDocuments;
-          break;
-        case "financial":
-          hasPermission = permissions.canManageFinancials;
-          break;
-        case "documents":
-          hasPermission = permissions.canManageDocuments;
-          break;
-        case "settings":
-          hasPermission = permissions.canManageSettings;
-          break;
-      }
-
-      if (!hasPermission) {
-        return { 
-          isValid: false, 
-          error: `Insufficient permissions for ${requiredPermission} operations` 
-        };
-      }
-    }
+    // In MVP, all permission checks pass since everyone has full access
 
     return {
       isValid: true,

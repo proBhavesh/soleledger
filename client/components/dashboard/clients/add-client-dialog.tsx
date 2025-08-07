@@ -12,23 +12,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Loader2, Shield, DollarSign, FileText, Eye, InfoIcon } from "lucide-react";
+import { Loader2, InfoIcon } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { createClientInvitation } from "@/lib/actions/client-management-actions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  ACCESS_LEVEL_INFO, 
-  type CreateClientInvitationData,
-  type AccessLevelKey,
-} from "@/lib/types/invitation";
+import type { CreateClientInvitationData } from "@/lib/types/invitation";
 
 interface AddClientDialogProps {
   open: boolean;
@@ -44,7 +33,7 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     clientName: "",
     email: "",
     businessName: "",
-    accessLevel: "FULL_MANAGEMENT",
+    accessLevel: "FULL_MANAGEMENT", // MVP: Only full management
     sendNotification: true,
   });
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
@@ -98,31 +87,22 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       const result = await createClientInvitation(formData);
       
       if (result.success) {
-        let message = "Client invitation created successfully!";
-        
-        if (formData.sendNotification) {
-          switch (result.invitationType) {
-            case "NEW_USER":
-              message = "Invitation sent! Your client will receive an email to create their account.";
-              break;
-            case "EXISTING_NO_BUSINESS":
-              message = "Invitation sent! Your client will be asked to set up their business.";
-              break;
-            case "EXISTING_WITH_BUSINESS":
-              message = "Access request sent! Your client will need to approve your access.";
-              break;
-          }
-        }
-        
-        toast.success(message);
-        onOpenChange(false);
+        toast.success("Invitation sent successfully!");
         onSuccess?.();
+        onOpenChange(false);
       } else {
-        toast.error(result.error || "Failed to create invitation");
+        // Check for specific error types
+        if (result.error?.includes("already invited")) {
+          toast.error("This client has already been invited to your business");
+        } else if (result.error?.includes("existing member")) {
+          toast.error("This client is already a member of your business");
+        } else {
+          toast.error(result.error || "Failed to send invitation");
+        }
       }
     } catch (error) {
-      console.error("Error creating invitation:", error);
-      toast.error("Failed to create invitation");
+      console.error("Error sending invitation:", error);
+      toast.error("An unexpected error occurred");
     } finally {
       setIsSubmitting(false);
     }
@@ -137,15 +117,14 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     }
   };
 
-  const SelectedAccessInfo = ACCESS_LEVEL_INFO[formData.accessLevel];
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Invite Client</DialogTitle>
           <DialogDescription>
-            Send an invitation to manage your client&apos;s bookkeeping. They&apos;ll receive an email with instructions.
+            Send an invitation to your client to join SoleLedger. They&apos;ll be able to
+            create an account and you&apos;ll manage their bookkeeping.
           </DialogDescription>
         </DialogHeader>
 
@@ -154,7 +133,7 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
             <Label htmlFor="clientName">Client Name</Label>
             <Input
               id="clientName"
-              placeholder="John Smith"
+              placeholder="John Doe"
               value={formData.clientName}
               onChange={(e) => handleInputChange("clientName", e.target.value)}
               disabled={isSubmitting}
@@ -196,46 +175,8 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
             </p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="accessLevel">Access Level</Label>
-            <Select
-              value={formData.accessLevel}
-              onValueChange={(value) => handleInputChange("accessLevel", value as FormData["accessLevel"])}
-              disabled={isSubmitting}
-            >
-              <SelectTrigger id="accessLevel">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(ACCESS_LEVEL_INFO).map(([value, info]) => {
-                  const iconMap = {
-                    VIEW_ONLY: Eye,
-                    FULL_MANAGEMENT: Shield,
-                    FINANCIAL_ONLY: DollarSign,
-                    DOCUMENTS_ONLY: FileText,
-                  };
-                  const Icon = iconMap[value as AccessLevelKey];
-                  return (
-                    <SelectItem key={value} value={value}>
-                      <div className="flex items-center gap-2">
-                        <Icon className="h-4 w-4" />
-                        <span>{info.label}</span>
-                      </div>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-            
-            {SelectedAccessInfo && (
-              <Alert className="mt-2">
-                <InfoIcon className="h-4 w-4" />
-                <AlertDescription>
-                  {SelectedAccessInfo.description}
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
+          {/* Access Level - Hidden for MVP as all users have full management */}
+          <input type="hidden" name="accessLevel" value="FULL_MANAGEMENT" />
 
           <div className="flex items-center space-x-2">
             <Checkbox
@@ -252,7 +193,8 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
           <Alert>
             <InfoIcon className="h-4 w-4" />
             <AlertDescription className="text-sm">
-              If the client already has an account with a business, they&apos;ll need to approve your access request.
+              Your client will receive full access to manage their business data.
+              If they already have an account with a business, they&apos;ll need to approve your access request.
             </AlertDescription>
           </Alert>
 

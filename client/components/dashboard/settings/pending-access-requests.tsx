@@ -19,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Shield, Eye, DollarSign, FileText, CheckCircle, XCircle } from "lucide-react";
+import { Shield, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useBusinessContext } from "@/lib/contexts/business-context";
@@ -34,21 +34,9 @@ interface PendingRequest {
 }
 
 const accessLevelInfo = {
-  VIEW_ONLY: {
-    label: "View Only",
-    icon: Eye,
-  },
   FULL_MANAGEMENT: {
     label: "Full Management",
     icon: Shield,
-  },
-  FINANCIAL_ONLY: {
-    label: "Financial Only",
-    icon: DollarSign,
-  },
-  DOCUMENTS_ONLY: {
-    label: "Documents Only",
-    icon: FileText,
   },
 };
 

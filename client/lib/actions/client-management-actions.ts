@@ -142,7 +142,6 @@ export async function createClientInvitation(
             accountantEmail: invitation.sender.email || "",
             clientName: validatedData.clientName,
             businessName: invitation.business?.name || validatedData.businessName,
-            accessLevel: validatedData.accessLevel,
             invitationUrl,
             expiresAt: formattedExpiry,
           });
@@ -356,7 +355,6 @@ export async function resendInvitation(invitationId: string): Promise<ResendInvi
           accountantEmail: invitation.sender.email || "",
           clientName: invitation.clientName || invitation.email,
           businessName: invitation.business?.name || invitation.businessName || "",
-          accessLevel: invitation.accessLevel,
           invitationUrl,
           expiresAt: formattedExpiry,
         });

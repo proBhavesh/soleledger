@@ -7,7 +7,6 @@ interface ExistingUserWithBusinessEmailProps {
   accountantEmail: string;
   clientName: string;
   businessName: string;
-  accessLevel: string;
   invitationUrl: string;
   expiresAt: string;
 }
@@ -17,18 +16,10 @@ export function ExistingUserWithBusinessEmail({
   accountantEmail,
   clientName,
   businessName,
-  accessLevel,
   invitationUrl,
   expiresAt,
 }: ExistingUserWithBusinessEmailProps) {
   const preview = `${accountantName} requested access to manage ${businessName}`;
-
-  const accessLevelDescriptions: Record<string, string> = {
-    VIEW_ONLY: 'View all financial data (read-only access)',
-    FULL_MANAGEMENT: 'Full access to manage all aspects of your books',
-    FINANCIAL_ONLY: 'Manage transactions, accounts, and financial reports',
-    DOCUMENTS_ONLY: 'Manage receipts, invoices, and document processing',
-  };
 
   return (
     <BaseEmail
@@ -57,8 +48,8 @@ export function ExistingUserWithBusinessEmail({
         margin: '0 40px 20px',
       }}>
         <Text style={{ ...baseStyles.text, margin: 0, padding: 0 }}>
-          <strong>{accessLevel.replace(/_/g, ' ')}</strong><br />
-          {accessLevelDescriptions[accessLevel] || 'Custom access level'}
+          <strong>FULL MANAGEMENT</strong><br />
+          Full access to manage all aspects of your books
         </Text>
       </div>
 
@@ -66,59 +57,36 @@ export function ExistingUserWithBusinessEmail({
         If you approve this request, {accountantName} will be able to:
       </Text>
 
-      {accessLevel === 'FULL_MANAGEMENT' && (
-        <Text style={baseStyles.text}>
-          • View and edit all transactions<br />
-          • Manage bank accounts and connections<br />
-          • Process and categorize documents<br />
-          • Generate and export financial reports<br />
-          • Manage chart of accounts
-        </Text>
-      )}
-
-      {accessLevel === 'FINANCIAL_ONLY' && (
-        <Text style={baseStyles.text}>
-          • View and edit transactions<br />
-          • Manage bank accounts<br />
-          • Generate financial reports<br />
-          • Manage chart of accounts
-        </Text>
-      )}
-
-      {accessLevel === 'DOCUMENTS_ONLY' && (
-        <Text style={baseStyles.text}>
-          • Upload and process receipts<br />
-          • Manage document categorization<br />
-          • Handle invoice processing<br />
-          • Perform reconciliation
-        </Text>
-      )}
-
-      {accessLevel === 'VIEW_ONLY' && (
-        <Text style={baseStyles.text}>
-          • View all financial data<br />
-          • Export reports<br />
-          • No editing capabilities
-        </Text>
-      )}
-
-      <div style={baseStyles.buttonContainer}>
-        <Button style={baseStyles.button} href={invitationUrl}>
-          Review Access Request
-        </Button>
-      </div>
-
-      <Text style={{ ...baseStyles.text, fontSize: '14px', color: '#666' }}>
-        This request will expire on {expiresAt}. You can approve, modify the 
-        access level, or decline this request.
+      <Text style={baseStyles.text}>
+        • View and edit all transactions<br />
+        • Manage bank accounts and connections<br />
+        • Process and categorize documents<br />
+        • Generate and export financial reports<br />
+        • Manage chart of accounts
       </Text>
 
       <Hr style={baseStyles.hr} />
 
-      <Text style={{ ...baseStyles.text, fontSize: '14px', color: '#666' }}>
-        <strong>Important:</strong> Only grant access to accountants you trust. 
-        You can revoke or modify access at any time from your SoleLedger dashboard 
-        under Settings → Team Members.
+      <Text style={baseStyles.text}>
+        <strong>⚠️ Important:</strong> Only approve this request if you trust this 
+        accountant to manage your financial data. They will have full access to your business information.
+      </Text>
+
+      <Button
+        style={baseStyles.button}
+        href={invitationUrl}
+      >
+        Review Access Request
+      </Button>
+
+      <Text style={{ ...baseStyles.text, fontSize: '12px', color: '#8898aa' }}>
+        This access request expires on {expiresAt}. 
+        If you don&apos;t want to grant access, you can safely ignore this email.
+      </Text>
+
+      <Text style={{ ...baseStyles.text, fontSize: '12px', color: '#8898aa' }}>
+        If you believe this request was sent in error or you don&apos;t know this person, 
+        please contact our support team immediately.
       </Text>
     </BaseEmail>
   );

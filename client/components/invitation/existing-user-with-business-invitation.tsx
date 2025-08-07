@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Shield, User, AlertTriangle, Eye, DollarSign, FileText } from "lucide-react";
+import { Loader2, Shield, User, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { signIn } from "next-auth/react";
 
@@ -23,53 +23,6 @@ interface ExistingUserWithBusinessInvitationProps {
   onSuccess: () => void;
 }
 
-const accessLevelInfo = {
-  VIEW_ONLY: {
-    label: "View Only",
-    description: "Can view all data but cannot make changes",
-    icon: Eye,
-    permissions: [
-      "View all transactions and reports",
-      "Export financial data",
-      "View documents and receipts",
-    ],
-  },
-  FULL_MANAGEMENT: {
-    label: "Full Management",
-    description: "Complete access to manage all aspects",
-    icon: Shield,
-    permissions: [
-      "Create and edit transactions",
-      "Manage bank accounts",
-      "Process documents and receipts",
-      "Generate and export reports",
-      "Manage chart of accounts",
-    ],
-  },
-  FINANCIAL_ONLY: {
-    label: "Financial Only",
-    description: "Manage transactions, accounts, and reports",
-    icon: DollarSign,
-    permissions: [
-      "Create and edit transactions",
-      "Manage bank accounts",
-      "Generate financial reports",
-      "Manage chart of accounts",
-    ],
-  },
-  DOCUMENTS_ONLY: {
-    label: "Documents Only",
-    description: "Manage receipts, invoices, and reconciliation",
-    icon: FileText,
-    permissions: [
-      "Upload and process receipts",
-      "Manage document categorization",
-      "Handle invoice processing",
-      "Perform reconciliation",
-    ],
-  },
-};
-
 export function ExistingUserWithBusinessInvitation({ 
   token, 
   invitation, 
@@ -78,9 +31,6 @@ export function ExistingUserWithBusinessInvitation({
   const { data: session, status } = useSession();
   const [loading, setLoading] = useState(false);
   const [needsAuth, setNeedsAuth] = useState(false);
-
-  const accessInfo = accessLevelInfo[invitation.accessLevel as keyof typeof accessLevelInfo] || accessLevelInfo.VIEW_ONLY;
-  const AccessIcon = accessInfo.icon;
 
   useEffect(() => {
     // Check if user is authenticated and matches the invitation email
@@ -107,20 +57,20 @@ export function ExistingUserWithBusinessInvitation({
       const response = await fetch(`/api/invitations/${token}/accept`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ confirmBusinessCreation: true }),
       });
 
       const data = await response.json();
 
-      if (!response.ok) {
-        toast.error(data.error || "Failed to accept invitation");
-        return;
+      if (response.ok && data.success) {
+        toast.success("Access request approved! The accountant can now manage your books.");
+        onSuccess();
+      } else {
+        toast.error(data.error || "Failed to approve access request");
       }
-
-      toast.success("Access granted successfully!");
-      setTimeout(onSuccess, 2000);
-    } catch {
-      toast.error("Failed to accept invitation");
+    } catch (error) {
+      console.error("Failed to accept invitation:", error);
+      toast.error("An error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -133,113 +83,107 @@ export function ExistingUserWithBusinessInvitation({
         method: "POST",
       });
 
-      if (!response.ok) {
-        toast.error("Failed to reject invitation");
-        return;
-      }
+      const data = await response.json();
 
-      toast.success("Access request declined");
-      setTimeout(() => window.location.href = "/", 2000);
-    } catch {
-      toast.error("Failed to reject invitation");
+      if (response.ok && data.success) {
+        toast.success("Access request rejected");
+        onSuccess();
+      } else {
+        toast.error(data.error || "Failed to reject access request");
+      }
+    } catch (error) {
+      console.error("Failed to reject invitation:", error);
+      toast.error("An error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
-      <Card className="w-full max-w-lg">
-        <CardHeader className="text-center">
-          <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-            <Shield className="h-6 w-6 text-primary" />
-          </div>
-          <CardTitle className="text-2xl">Accountant Access Request</CardTitle>
-          <CardDescription>
-            Review and approve access to your business
-          </CardDescription>
-        </CardHeader>
+    <Card className="w-full max-w-2xl">
+      <CardHeader>
+        <div className="flex items-center gap-3 mb-2">
+          <User className="h-6 w-6 text-blue-600" />
+          <Badge variant="default">Accountant Access Request</Badge>
+        </div>
+        <CardTitle>Approve Accountant Access</CardTitle>
+        <CardDescription>
+          {invitation.senderName} wants to manage the books for {invitation.businessName}
+        </CardDescription>
+      </CardHeader>
 
-        <CardContent className="space-y-6">
-          <Alert>
-            <User className="h-4 w-4" />
-            <AlertDescription>
-              <strong>{invitation.senderName}</strong> ({invitation.senderEmail}) is requesting 
-              access to manage the books for <strong>{invitation.businessName}</strong>.
-            </AlertDescription>
-          </Alert>
+      <CardContent className="space-y-6">
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Important:</strong> You already have a business account. 
+            This accountant is requesting permission to manage your books. 
+            Only approve if you trust this person.
+          </AlertDescription>
+        </Alert>
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <AccessIcon className="h-8 w-8 text-primary" />
-                <div>
-                  <p className="font-medium">{accessInfo.label}</p>
-                  <p className="text-sm text-muted-foreground">{accessInfo.description}</p>
-                </div>
+        <div className="space-y-4">
+          <div>
+            <h4 className="font-semibold mb-2">Accountant Details</h4>
+            <div className="bg-muted rounded-lg p-4 space-y-2">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Name:</span>
+                <span className="font-medium">{invitation.senderName}</span>
               </div>
-              <Badge variant="secondary">{invitation.accessLevel.replace(/_/g, " ")}</Badge>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Email:</span>
+                <span className="font-medium">{invitation.senderEmail}</span>
+              </div>
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <p className="text-sm font-medium">This accountant will be able to:</p>
-              <ul className="space-y-1">
-                {accessInfo.permissions.map((permission, index) => (
-                  <li key={index} className="text-sm text-muted-foreground flex items-start gap-2">
-                    <span className="text-green-600 mt-0.5">•</span>
-                    <span>{permission}</span>
-                  </li>
-                ))}
+          <div>
+            <h4 className="font-semibold mb-2 flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Access Level: Full Management
+            </h4>
+            <div className="bg-blue-50 rounded-lg p-4">
+              <p className="text-sm text-blue-900 mb-3">
+                Complete access to manage all aspects of your business
+              </p>
+              <ul className="space-y-1 text-sm text-blue-700">
+                <li>• Create and edit transactions</li>
+                <li>• Manage bank accounts</li>
+                <li>• Process documents and receipts</li>
+                <li>• Generate and export reports</li>
+                <li>• Manage chart of accounts</li>
               </ul>
             </div>
           </div>
+        </div>
 
-          <Alert variant="default">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription className="text-sm">
-              You can change or revoke this access at any time from your dashboard under 
-              Settings → Team Members.
+        {needsAuth && (
+          <Alert>
+            <AlertDescription>
+              Please sign in with the email address <strong>{invitation.email}</strong> to continue.
             </AlertDescription>
           </Alert>
+        )}
+      </CardContent>
 
-          {needsAuth && (
-            <Alert>
-              <AlertDescription className="text-sm">
-                Please sign in to your SoleLedger account ({invitation.email}) to manage this request.
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-
-        <CardFooter className="flex gap-3">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={handleReject}
-            disabled={loading}
-          >
-            Decline Request
-          </Button>
-          {needsAuth ? (
-            <Button
-              className="flex-1"
-              onClick={handleSignIn}
-              disabled={loading}
-            >
-              Sign In to Review
-            </Button>
-          ) : (
-            <Button
-              className="flex-1"
-              onClick={handleAccept}
-              disabled={loading}
-            >
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Approve Access
-            </Button>
-          )}
-        </CardFooter>
-      </Card>
-    </div>
+      <CardFooter className="flex gap-3">
+        <Button
+          variant="outline"
+          className="flex-1"
+          onClick={handleReject}
+          disabled={loading}
+        >
+          Reject
+        </Button>
+        <Button 
+          className="flex-1"
+          onClick={needsAuth ? handleSignIn : handleAccept}
+          disabled={loading}
+        >
+          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {needsAuth ? "Sign In to Continue" : "Approve Access"}
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }
