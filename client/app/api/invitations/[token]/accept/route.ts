@@ -5,6 +5,7 @@ import { createDefaultChartOfAccounts } from "@/lib/actions/chart-of-accounts-ac
 import { 
   acceptInvitationSchema,
 } from "@/lib/types/invitation";
+import { AuthProvider, UserRole } from "@/generated/prisma";
 import { z } from "zod";
 
 export async function POST(
@@ -72,9 +73,12 @@ export async function POST(
     // Handle based on invitation type
     switch (invitation.invitationType) {
       case "NEW_USER": {
-        if (!validatedData.password) {
+        // Check if using OAuth or password
+        const useOAuth = validatedData.authMethod === "oauth";
+        
+        if (!useOAuth && !validatedData.password) {
           return NextResponse.json(
-            { error: "Password is required for new users" },
+            { error: "Password is required when not using OAuth" },
             { status: 400, headers: responseHeaders }
           );
         }
@@ -82,15 +86,37 @@ export async function POST(
         // Create user and business in a transaction
         const result = await db.$transaction(async (tx) => {
           // Create the user
-          const hashedPassword = await hash(validatedData.password!, 10);
+          interface UserCreateData {
+            email: string;
+            name: string;
+            role: UserRole;
+            authProvider: AuthProvider;
+            emailVerified?: Date;
+            hashedPassword?: string;
+            emailVerificationToken?: string;
+          }
+          
+          const userData: UserCreateData = {
+            email: invitation.email,
+            name: invitation.clientName || invitation.email,
+            role: UserRole.BUSINESS_OWNER,
+            authProvider: useOAuth ? AuthProvider.GOOGLE : AuthProvider.CREDENTIALS,
+          };
+          
+          if (useOAuth) {
+            // For OAuth users, mark email as verified since OAuth providers verify emails
+            userData.emailVerified = new Date();
+          } else {
+            // For password users, hash the password but don't auto-verify email
+            const hashedPassword = await hash(validatedData.password!, 10);
+            userData.hashedPassword = hashedPassword;
+            // Generate email verification token for later verification
+            const crypto = await import('crypto');
+            userData.emailVerificationToken = crypto.randomUUID();
+          }
+          
           const newUser = await tx.user.create({
-            data: {
-              email: invitation.email,
-              name: invitation.clientName || invitation.email,
-              hashedPassword: hashedPassword,
-              role: "BUSINESS_OWNER",
-              emailVerified: new Date(), // Auto-verify since invited
-            },
+            data: userData,
           });
 
           // Create the business
@@ -132,7 +158,8 @@ export async function POST(
         return NextResponse.json({
           success: true,
           message: "Account created successfully",
-          redirectTo: "/login",
+          redirectTo: useOAuth ? `/login?oauth=true&email=${invitation.email}` : "/login",
+          requiresOAuth: useOAuth,
         }, { headers: responseHeaders });
       }
 

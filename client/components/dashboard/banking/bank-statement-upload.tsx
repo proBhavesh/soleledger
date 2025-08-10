@@ -26,7 +26,7 @@ import {
   AlertCircle,
   Loader2,
   X,
-  FileSpreadsheet,
+  // FileSpreadsheet, // CSV/Excel temporarily disabled
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -34,7 +34,8 @@ import {
   processBankStatement,
 } from "@/lib/actions/bank-statement-actions";
 import { BankStatementReview } from "./bank-statement-review";
-import { CsvExcelBankUpload } from "./csv-excel-bank-upload";
+// CSV/Excel upload temporarily disabled
+// import { CsvExcelBankUpload } from "./csv-excel-bank-upload";
 import type { BankAccount } from "@/lib/types/dashboard";
 import type { BankStatementData } from "@/lib/ai/bank-statement-processor";
 
@@ -69,21 +70,23 @@ export function BankStatementUpload({
   const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>("");
   const [processedStatement, setProcessedStatement] = useState<ProcessedStatement | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [csvExcelFile, setCsvExcelFile] = useState<File | null>(null);
-  const [showCsvExcelUpload, setShowCsvExcelUpload] = useState(false);
+  // CSV/Excel upload temporarily disabled
+  // const [csvExcelFile, setCsvExcelFile] = useState<File | null>(null);
+  // const [showCsvExcelUpload, setShowCsvExcelUpload] = useState(false);
 
-  const isSpreadsheetFile = (file: File): boolean => {
-    const fileType = file.type;
-    const fileName = file.name.toLowerCase();
-    return (
-      fileType === "text/csv" ||
-      fileType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-      fileType === "application/vnd.ms-excel" ||
-      fileName.endsWith(".csv") ||
-      fileName.endsWith(".xlsx") ||
-      fileName.endsWith(".xls")
-    );
-  };
+  // CSV/Excel detection temporarily disabled
+  // const isSpreadsheetFile = (file: File): boolean => {
+  //   const fileType = file.type;
+  //   const fileName = file.name.toLowerCase();
+  //   return (
+  //     fileType === "text/csv" ||
+  //     fileType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+  //     fileType === "application/vnd.ms-excel" ||
+  //     fileName.endsWith(".csv") ||
+  //     fileName.endsWith(".xlsx") ||
+  //     fileName.endsWith(".xls")
+  //   );
+  // };
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -93,14 +96,12 @@ export function BankStatementUpload({
         return;
       }
       
-      if (isSpreadsheetFile(file)) {
-        setCsvExcelFile(file);
-        setSelectedFile(null);
-      } else if (file.type === "application/pdf") {
+      // Only accept PDF files for now
+      if (file.type === "application/pdf") {
         setSelectedFile(file);
-        setCsvExcelFile(null);
+        // setCsvExcelFile(null);
       } else {
-        toast.error("Only PDF, CSV, or Excel files are allowed");
+        toast.error("Only PDF files are currently supported");
         return;
       }
       setError(null);
@@ -111,9 +112,10 @@ export function BankStatementUpload({
     onDrop,
     accept: {
       "application/pdf": [".pdf"],
-      "text/csv": [".csv"],
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
-      "application/vnd.ms-excel": [".xls"],
+      // CSV/Excel temporarily disabled
+      // "text/csv": [".csv"],
+      // "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+      // "application/vnd.ms-excel": [".xls"],
     },
     maxFiles: 1,
     maxSize: 10 * 1024 * 1024, // 10MB
@@ -189,11 +191,11 @@ export function BankStatementUpload({
 
   const handleReset = () => {
     setSelectedFile(null);
-    setCsvExcelFile(null);
+    // setCsvExcelFile(null);
     setProcessedStatement(null);
     setError(null);
     setUploadProgress(0);
-    setShowCsvExcelUpload(false);
+    // setShowCsvExcelUpload(false);
   };
 
   const handleImportComplete = () => {
@@ -215,25 +217,25 @@ export function BankStatementUpload({
     );
   }
 
-  // If we have a CSV/Excel file and user clicked continue, show the CSV/Excel upload component
-  if (csvExcelFile && selectedBankAccountId && showCsvExcelUpload) {
-    return (
-      <CsvExcelBankUpload
-        file={csvExcelFile}
-        bankAccountId={selectedBankAccountId}
-        onComplete={handleImportComplete}
-        onRemove={handleReset}
-      />
-    );
-  }
+  // CSV/Excel upload temporarily disabled
+  // if (csvExcelFile && selectedBankAccountId && showCsvExcelUpload) {
+  //   return (
+  //     <CsvExcelBankUpload
+  //       file={csvExcelFile}
+  //       bankAccountId={selectedBankAccountId}
+  //       onComplete={handleImportComplete}
+  //       onRemove={handleReset}
+  //     />
+  //   );
+  // }
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Upload Bank Statement</CardTitle>
         <CardDescription>
-          Upload a bank statement to import transactions. Supported formats:
-          PDF (AI extraction), CSV, or Excel files.
+          Upload a bank statement to import transactions. Supported format:
+          PDF (AI-powered extraction).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -272,18 +274,14 @@ export function BankStatementUpload({
           `}
         >
           <input {...getInputProps()} />
-          {selectedFile || csvExcelFile ? (
+          {selectedFile ? (
             <div className="space-y-2">
-              {selectedFile ? (
-                <FileText className="w-12 h-12 text-primary mx-auto" />
-              ) : (
-                <FileSpreadsheet className="w-12 h-12 text-green-600 mx-auto" />
-              )}
+              <FileText className="w-12 h-12 text-primary mx-auto" />
               <div className="font-medium">
-                {selectedFile?.name || csvExcelFile?.name}
+                {selectedFile?.name}
               </div>
               <div className="text-sm text-muted-foreground">
-                {((selectedFile?.size || csvExcelFile?.size || 0) / 1024 / 1024).toFixed(2)} MB
+                {((selectedFile?.size || 0) / 1024 / 1024).toFixed(2)} MB
               </div>
               <Button
                 variant="ghost"
@@ -291,7 +289,7 @@ export function BankStatementUpload({
                 onClick={(e) => {
                   e.stopPropagation();
                   setSelectedFile(null);
-                  setCsvExcelFile(null);
+                  // setCsvExcelFile(null);
                 }}
               >
                 <X className="w-4 h-4 mr-2" />
@@ -305,7 +303,7 @@ export function BankStatementUpload({
                 {isDragActive ? "Drop the file here" : "Drop your bank statement here"}
               </div>
               <div className="text-sm text-muted-foreground">
-                or click to select a file (PDF, CSV, or Excel - max 10MB)
+                or click to select a PDF file (max 10MB)
               </div>
             </div>
           )}
@@ -340,25 +338,13 @@ export function BankStatementUpload({
             Cancel
           </Button>
           <Button
-            onClick={() => {
-              if (csvExcelFile) {
-                // For CSV/Excel files, show the CSV/Excel upload component
-                setShowCsvExcelUpload(true);
-              } else {
-                handleUpload();
-              }
-            }}
-            disabled={(!selectedFile && !csvExcelFile) || !selectedBankAccountId || isUploading || isProcessing}
+            onClick={handleUpload}
+            disabled={!selectedFile || !selectedBankAccountId || isUploading || isProcessing}
           >
             {isUploading || isProcessing ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 {isUploading ? "Uploading..." : "Processing..."}
-              </>
-            ) : csvExcelFile ? (
-              <>
-                <FileSpreadsheet className="w-4 h-4 mr-2" />
-                Continue
               </>
             ) : (
               <>

@@ -10,6 +10,7 @@ import { getServerSession } from "next-auth/next";
 import { db } from "@/lib/db";
 import { userAuthSchema } from "@/lib/types";
 import { createDefaultChartOfAccounts } from "@/lib/actions/chart-of-accounts-actions";
+import { AuthProvider } from "@/generated/prisma";
 
 // Extend NextAuth types using declaration merging
 declare module "next-auth" {
@@ -83,6 +84,14 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
+        // Update auth provider if not set
+        if (!user.authProvider) {
+          await db.user.update({
+            where: { id: user.id },
+            data: { authProvider: AuthProvider.CREDENTIALS },
+          });
+        }
+
         return {
           id: user.id,
           name: user.name || "",
@@ -136,6 +145,7 @@ export const authOptions: NextAuthOptions = {
                   name: user.name || "",
                   image: user.image,
                   role: role,
+                  authProvider: AuthProvider.GOOGLE,
                   emailVerified: new Date(), // Google emails are pre-verified
                 },
               });
@@ -189,6 +199,14 @@ export const authOptions: NextAuthOptions = {
               if (!chartResult.success) {
                 console.error("Failed to create Chart of Accounts for Google OAuth user:", chartResult.error);
               }
+            }
+          } else {
+            // Update existing user's auth provider if not set
+            if (!existingUser.authProvider) {
+              await db.user.update({
+                where: { id: existingUser.id },
+                data: { authProvider: AuthProvider.GOOGLE },
+              });
             }
           }
 

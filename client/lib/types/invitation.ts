@@ -17,6 +17,7 @@ export const createClientInvitationSchema = z.object({
 export const acceptInvitationSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters").optional(),
   confirmBusinessCreation: z.boolean().optional(),
+  authMethod: z.enum(["password", "oauth"]).optional().default("password"),
 });
 
 // Schema for invitation token validation
@@ -70,6 +71,7 @@ export interface InvitationValidationResponse {
     senderEmail: string;
     expiresAt: string;
     hasExistingUser: boolean;
+    userAuthProvider?: string | null; // Track user's auth method if they exist
   };
 }
 

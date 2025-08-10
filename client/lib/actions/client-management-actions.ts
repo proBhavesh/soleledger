@@ -48,6 +48,7 @@ export async function createClientInvitation(
       where: { email: validatedData.email },
       include: {
         businesses: true,
+        accounts: true, // Include OAuth accounts to check auth method
       },
     });
 

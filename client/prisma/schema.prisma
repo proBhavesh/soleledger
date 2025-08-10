@@ -16,8 +16,10 @@ model User {
   email               String             @unique
   name                String?
   hashedPassword      String?
+  authProvider        AuthProvider?      // Primary authentication method
   role                UserRole           @default(BUSINESS_OWNER)
   emailVerified       DateTime?
+  emailVerificationToken String?         @unique  // For password-based email verification
   image               String?
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
@@ -475,6 +477,11 @@ enum UserRole {
   BUSINESS_OWNER
   ACCOUNTANT
   ADMIN
+}
+
+enum AuthProvider {
+  CREDENTIALS  // Email/password authentication
+  GOOGLE       // Google OAuth
 }
 
 enum BusinessAccessLevel {

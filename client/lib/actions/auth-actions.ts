@@ -16,6 +16,7 @@ import {
   type PasswordResetValidationResponse,
   AUTH_ERROR_MESSAGES,
 } from "@/lib/types/auth-actions";
+import { AuthProvider } from "@/generated/prisma";
 
 export async function loginAction(formData: FormData) {
   const email = formData.get("email") as string;
@@ -86,6 +87,7 @@ export async function registerAction(formData: FormData) {
         name,
         email,
         hashedPassword,
+        authProvider: AuthProvider.CREDENTIALS,
         role,
       },
     });
@@ -193,6 +195,11 @@ export async function requestPasswordReset(email: string): Promise<PasswordReset
     // Always return success to prevent email enumeration
     if (!user) {
       return { success: true };
+    }
+
+    // Check if user has OAuth authentication
+    if (!user.hashedPassword && user.authProvider === AuthProvider.GOOGLE) {
+      return { success: false, error: "This account uses Google sign-in. Please sign in with Google instead." };
     }
 
     // Check for recent password reset requests (rate limiting)

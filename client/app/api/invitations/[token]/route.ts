@@ -47,6 +47,7 @@ export async function GET(
             id: true,
             email: true,
             name: true,
+            authProvider: true, // Include auth provider for existing users
           },
         },
       },
@@ -88,6 +89,7 @@ export async function GET(
         senderEmail: invitation.sender.email || "",
         expiresAt: invitation.expiresAt.toISOString(),
         hasExistingUser: !!invitation.receiver,
+        userAuthProvider: invitation.receiver?.authProvider || null,
       },
     };
 

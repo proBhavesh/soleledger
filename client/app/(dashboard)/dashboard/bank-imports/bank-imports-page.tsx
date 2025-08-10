@@ -115,8 +115,8 @@ export function BankImportsPage({ bankAccounts, error }: BankImportsPageProps) {
             <CardHeader>
               <CardTitle>Upload Bank Statement</CardTitle>
               <CardDescription>
-                Upload a bank statement to import transactions. Supported formats:
-                PDF (AI extraction), CSV, or Excel files.
+                Upload a bank statement to import transactions. Supported format:
+                PDF (AI-powered extraction).
               </CardDescription>
             </CardHeader>
             <CardContent>
